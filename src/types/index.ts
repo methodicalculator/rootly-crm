@@ -30,6 +30,7 @@ export interface Organization {
   contract_start_date: string | null;
   contract_end_date: string | null;
   meta_business_id: string | null;
+  meta_page_id: string | null;
   meta_ad_account_id: string | null;
   created_at: string;
   updated_at: string;

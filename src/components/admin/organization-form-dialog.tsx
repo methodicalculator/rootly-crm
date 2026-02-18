@@ -49,6 +49,7 @@ const EMPTY_FORM: OrganizationFormValues = {
   city: "",
   province: "",
   type: "fisioterapia",
+  meta_page_id: "",
   meta_ad_account_id: "",
   monthly_budget: "",
   contract_start_date: "",
@@ -81,6 +82,7 @@ export function OrganizationFormDialog({
         city: editingOrg.city ?? "",
         province: editingOrg.province ?? "",
         type: (editingOrg.type === "agency" ? "altro" : editingOrg.type) as OrganizationFormValues["type"],
+        meta_page_id: editingOrg.meta_page_id ?? "",
         meta_ad_account_id: editingOrg.meta_ad_account_id ?? "",
         monthly_budget: editingOrg.monthly_budget
           ? String(editingOrg.monthly_budget)
@@ -117,6 +119,7 @@ export function OrganizationFormDialog({
         city: values.city || null,
         province: values.province || null,
         type: values.type,
+        meta_page_id: values.meta_page_id || null,
         meta_ad_account_id: values.meta_ad_account_id || null,
         monthly_budget: values.monthly_budget
           ? parseFloat(values.monthly_budget)
@@ -258,24 +261,32 @@ export function OrganizationFormDialog({
             </div>
           </div>
 
-          {/* Meta Ad Account */}
-          <div className="space-y-1.5">
-            <Label htmlFor="meta_ad_account_id">Meta Ad Account ID</Label>
-            <Input
-              id="meta_ad_account_id"
-              placeholder="Solo numeri (opzionale)"
-              {...form.register("meta_ad_account_id")}
-            />
-            {form.formState.errors.meta_ad_account_id ? (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.meta_ad_account_id.message}
-              </p>
-            ) : (
+          {/* Meta Integration */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="meta_page_id">Facebook Page ID</Label>
+              <Input
+                id="meta_page_id"
+                placeholder="es: 123456789012345"
+                {...form.register("meta_page_id")}
+              />
               <p className="text-xs text-muted-foreground">
-                Inserisci dopo aver creato l&apos;Ad Account Meta. Necessario
-                per integrazione automatica lead.
+                Necessario per il routing automatico dei lead da Meta Ads.
               </p>
-            )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="meta_ad_account_id">Meta Ad Account ID</Label>
+              <Input
+                id="meta_ad_account_id"
+                placeholder="Solo numeri"
+                {...form.register("meta_ad_account_id")}
+              />
+              {form.formState.errors.meta_ad_account_id && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.meta_ad_account_id.message}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Budget + Status */}

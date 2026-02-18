@@ -32,6 +32,7 @@ export const organizationFormSchema = z.object({
     "estetica",
     "altro",
   ]),
+  meta_page_id: z.string().optional(),
   meta_ad_account_id: z
     .string()
     .optional()

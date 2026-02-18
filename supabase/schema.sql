@@ -47,7 +47,8 @@ CREATE TABLE organizations (
   contract_end_date DATE,
 
   -- Meta Ads Integration
-  meta_business_id TEXT,
+  meta_business_id TEXT UNIQUE,
+  meta_page_id TEXT UNIQUE,
   meta_ad_account_id TEXT,
 
   -- Timestamps
