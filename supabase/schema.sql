@@ -85,6 +85,8 @@ CREATE TABLE user_profiles (
   role TEXT NOT NULL DEFAULT 'owner', -- 'owner', 'staff', 'admin'
   full_name TEXT,
   email TEXT,
+  phone TEXT,
+  professional_type TEXT,
   avatar_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -228,8 +230,8 @@ CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
-  tipo TEXT NOT NULL, -- 'scadenza_contratto', 'budget_alert', 'performance_alert', 'nuovo_studio', 'approvazione', 'nuovo_cliente'
-  messaggio TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'scadenza_contratto', 'budget_alert', 'performance_alert', 'nuovo_studio', 'approvazione', 'nuovo_cliente'
+  message TEXT NOT NULL,
   read BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -244,7 +246,7 @@ DECLARE
   _source TEXT;
 BEGIN
   _source := COALESCE(NEW.source, 'altro');
-  INSERT INTO notifications (organization_id, user_id, tipo, messaggio)
+  INSERT INTO notifications (organization_id, user_id, type, message)
   SELECT
     NEW.organization_id,
     up.id,
@@ -458,7 +460,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 CREATE OR REPLACE FUNCTION public.is_admin_user()
 RETURNS BOOLEAN AS $$
   SELECT COALESCE(
-    (SELECT is_admin FROM public.user_profiles WHERE id = auth.uid()),
+    (SELECT is_admin OR is_super_admin FROM public.user_profiles WHERE id = auth.uid()),
     false
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;

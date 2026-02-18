@@ -149,7 +149,8 @@ export const INVOICE_STATUS_CONFIG: Record<
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" as const },
-  { href: "/clients", label: "Clienti", icon: "Users" as const },
+  { href: "/clients", label: "Lead", icon: "Users" as const },
+  { href: "/analytics", label: "Analisi Lead", icon: "TrendingUp" as const },
   { href: "/campaigns", label: "Campagne Marketing", icon: "Megaphone" as const },
   { href: "/calendar", label: "Calendario", icon: "Calendar" as const },
   { href: "/reports", label: "Report", icon: "BarChart3" as const },

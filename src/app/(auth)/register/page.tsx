@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -17,9 +24,19 @@ import {
 } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
+const PROFESSIONAL_TYPES = [
+  { value: "fisioterapista", label: "Fisioterapista" },
+  { value: "osteopata", label: "Osteopata" },
+  { value: "olistico", label: "Olistico" },
+  { value: "estetica", label: "Estetica" },
+  { value: "altro", label: "Altro" },
+] as const;
+
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [professionalType, setProfessionalType] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -37,8 +54,16 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!professionalType) {
+      setError("Seleziona la tipologia professionale.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    console.log("[REGISTER] signUp start", { email, fullName });
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -48,10 +73,46 @@ export default function RegisterPage() {
       },
     });
 
-    if (error) {
-      setError(error.message);
+    console.log("[REGISTER] signUp result", {
+      userId: authData?.user?.id,
+      error: authError ? JSON.stringify(authError) : null,
+    });
+
+    if (authError) {
+      setError(`SignUp: ${authError.message} (status: ${authError.status})`);
       setLoading(false);
       return;
+    }
+
+    // Save extra profile fields via server-side API (bypasses RLS)
+    if (authData.user) {
+      console.log("[REGISTER] calling complete-profile", {
+        userId: authData.user.id,
+        phone,
+        professionalType,
+      });
+
+      const profileRes = await fetch("/api/auth/complete-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: authData.user.id,
+          phone,
+          professionalType,
+        }),
+      });
+
+      const profileBody = await profileRes.json().catch(() => ({}));
+      console.log("[REGISTER] complete-profile response", {
+        status: profileRes.status,
+        body: profileBody,
+      });
+
+      if (!profileRes.ok) {
+        setError(`Profilo: ${profileBody.error || "errore sconosciuto"}`);
+        setLoading(false);
+        return;
+      }
     }
 
     setSuccess(true);
@@ -121,6 +182,33 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="phone">Telefono</Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="+39 340 1234567"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+              autoComplete="tel"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Tipologia</Label>
+            <Select value={professionalType} onValueChange={setProfessionalType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona tipologia..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PROFESSIONAL_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
@@ -134,7 +222,7 @@ export default function RegisterPage() {
             />
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+        <CardFooter className="mt-6 flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Registrati

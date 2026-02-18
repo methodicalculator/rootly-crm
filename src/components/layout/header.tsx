@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, User, Search } from "lucide-react";
+import { LogOut, Settings, User } from "lucide-react";
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
@@ -55,18 +55,7 @@ export function Header({ profile }: { profile: UserProfile | null }) {
       <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 shadow-sm lg:px-6">
         <div className="flex items-center gap-4">
           <MobileNav />
-          <h2 className="text-lg font-semibold lg:hidden">Horizon One</h2>
-        </div>
-
-        <div className="hidden max-w-md flex-1 px-8 md:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Cerca clienti, campagne..."
-              className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
+          <h2 className="hidden">Horizon One</h2>
         </div>
 
         <div className="flex items-center gap-2">

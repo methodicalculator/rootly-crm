@@ -16,7 +16,7 @@ export default function PendingApprovalPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    const interval = setInterval(async () => {
+    async function checkProfile() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -24,15 +24,29 @@ export default function PendingApprovalPage() {
 
       const { data: profile } = await supabase
         .from("user_profiles")
-        .select("organization_id")
+        .select("organization_id, is_admin, is_super_admin")
         .eq("id", user.id)
         .single();
 
-      if (profile?.organization_id) {
+      if (!profile) return;
+
+      // Admin/super admin should never be on this page
+      if (profile.is_admin || profile.is_super_admin) {
+        router.push(profile.organization_id ? "/dashboard" : "/admin");
+        router.refresh();
+        return;
+      }
+
+      if (profile.organization_id) {
         router.push("/dashboard");
         router.refresh();
       }
-    }, 10000);
+    }
+
+    // Check immediately on mount
+    checkProfile();
+    // Then poll every 10 seconds
+    const interval = setInterval(checkProfile, 10000);
 
     return () => clearInterval(interval);
   }, [supabase, router]);

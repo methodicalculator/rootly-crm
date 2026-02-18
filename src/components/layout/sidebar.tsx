@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   Receipt,
   ScrollText,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, ADMIN_NAV_ITEMS } from "@/lib/constants";
@@ -28,6 +29,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ClipboardCheck,
   Receipt,
   ScrollText,
+  TrendingUp,
 };
 
 export function Sidebar() {

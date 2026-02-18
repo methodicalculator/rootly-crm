@@ -32,8 +32,9 @@ import type { Organization, OrganizationType } from "@/types";
 interface OrganizationFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (createdOrgId?: string) => void;
   editingOrg?: Organization | null;
+  prefillData?: Partial<OrganizationFormValues> | null;
 }
 
 const ORG_TYPES = (
@@ -60,6 +61,7 @@ export function OrganizationFormDialog({
   onOpenChange,
   onSuccess,
   editingOrg,
+  prefillData,
 }: OrganizationFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const isEditing = !!editingOrg;
@@ -87,10 +89,12 @@ export function OrganizationFormDialog({
         contract_end_date: editingOrg.contract_end_date ?? "",
         status: editingOrg.status as OrganizationFormValues["status"],
       });
+    } else if (open && prefillData) {
+      form.reset({ ...EMPTY_FORM, ...prefillData });
     } else if (open) {
       form.reset(EMPTY_FORM);
     }
-  }, [open, editingOrg, form]);
+  }, [open, editingOrg, prefillData, form]);
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
@@ -133,20 +137,25 @@ export function OrganizationFormDialog({
           return;
         }
         toast.success("Studio aggiornato con successo!");
+        handleOpenChange(false);
+        onSuccess();
       } else {
-        const { error } = await supabase
+        const { data: created, error } = await supabase
           .from("organizations")
-          .insert(payload);
+          .insert(payload)
+          .select("id")
+          .single();
 
         if (error) {
           toast.error("Errore durante la creazione");
           return;
         }
-        toast.success("Studio creato con successo!");
+        if (!prefillData) {
+          toast.success("Studio creato con successo!");
+        }
+        handleOpenChange(false);
+        onSuccess(created?.id);
       }
-
-      handleOpenChange(false);
-      onSuccess();
     } finally {
       setSubmitting(false);
     }

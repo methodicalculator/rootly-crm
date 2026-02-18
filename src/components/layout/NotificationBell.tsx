@@ -16,7 +16,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import type { Notification } from "@/types";
 
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  nuovo_cliente: "Nuovo Cliente",
+  nuovo_cliente: "Nuovo Lead",
   scadenza_contratto: "Scadenza Contratto",
   budget_alert: "Budget Alert",
   performance_alert: "Performance",
@@ -172,40 +172,45 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="flex flex-col">
-              {notifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => !n.read && markAsRead(n.id)}
-                  className={`flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted ${
-                    !n.read ? "bg-primary/5" : ""
-                  }`}
-                >
-                  <div className="mt-0.5 shrink-0">
-                    {!n.read ? (
-                      <span className="flex h-2 w-2 rounded-full bg-primary" />
-                    ) : (
-                      <Check className="h-3 w-3 text-muted-foreground/50" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-primary">
-                      {NOTIFICATION_TYPE_LABELS[n.tipo] ?? n.tipo}
-                    </p>
-                    <p
-                      className={`text-sm leading-snug ${
-                        !n.read
-                          ? "font-medium text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {n.messaggio}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {timeAgo(n.created_at)}
-                    </p>
-                  </div>
-                </button>
-              ))}
+              {notifications.map((n) => {
+                const title = NOTIFICATION_TYPE_LABELS[n.type] ?? n.type;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => !n.read && markAsRead(n.id)}
+                    className={`flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted ${
+                      !n.read ? "bg-primary/5" : ""
+                    }`}
+                  >
+                    <div className="mt-1 shrink-0">
+                      {!n.read ? (
+                        <span className="flex h-2.5 w-2.5 rounded-full bg-primary" />
+                      ) : (
+                        <Check className="h-3 w-3 text-muted-foreground/50" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm leading-snug ${
+                          !n.read
+                            ? "font-semibold text-foreground"
+                            : "font-medium text-muted-foreground"
+                        }`}
+                      >
+                        {title}
+                      </p>
+                      {n.message && (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {n.message}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] text-muted-foreground/70">
+                        {timeAgo(n.created_at)}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </ScrollArea>

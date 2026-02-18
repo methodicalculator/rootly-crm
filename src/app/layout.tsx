@@ -22,6 +22,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="it" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");var d=t||"system";if(d==="system"){d=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"}document.documentElement.classList.add(d)}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <TooltipProvider>

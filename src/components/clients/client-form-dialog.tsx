@@ -116,7 +116,7 @@ export function ClientFormDialog({
       return;
     }
 
-    toast.success("Cliente creato!");
+    toast.success("Lead creato!");
     form.reset();
     setTagInput("");
     onOpenChange(false);
@@ -135,7 +135,7 @@ export function ClientFormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuovo Cliente</DialogTitle>
+          <DialogTitle>Nuovo Lead</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -303,7 +303,7 @@ export function ClientFormDialog({
               disabled={submitting}
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva Cliente
+              Salva Lead
             </Button>
           </div>
         </form>

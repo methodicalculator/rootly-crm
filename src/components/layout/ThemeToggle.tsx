@@ -8,7 +8,12 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
   function toggleTheme() {
-    setTheme(theme === "dark" ? "light" : "dark");
+    if (theme === "system") {
+      const isSystemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(isSystemDark ? "light" : "dark");
+    } else {
+      setTheme(theme === "dark" ? "light" : "dark");
+    }
   }
 
   return (

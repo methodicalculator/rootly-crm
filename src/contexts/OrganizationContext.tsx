@@ -78,11 +78,24 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       if (user) {
         setUserId(user.id);
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("user_profiles")
           .select("organization_id, is_admin, is_super_admin, access_level, organizations(id, name, type, status)")
           .eq("id", user.id)
           .single();
+
+        // DEBUG — remove after fixing
+        console.log("[ORG CONTEXT DEBUG]", {
+          userId: user.id,
+          userEmail: user.email,
+          profile: profile ? {
+            organization_id: profile.organization_id,
+            is_admin: profile.is_admin,
+            is_super_admin: profile.is_super_admin,
+            access_level: profile.access_level,
+          } : null,
+          profileError: profileError?.message ?? null,
+        });
 
         if (profile) {
           setOrganizationId(profile.organization_id);

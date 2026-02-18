@@ -249,7 +249,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-muted-foreground">
-          Panoramica delle campagne e performance dei clienti.
+          Panoramica delle campagne e performance dei lead.
         </p>
       </div>
 
@@ -279,7 +279,7 @@ export default function DashboardPage() {
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Clienti Attivi
+              Lead Totali
             </CardTitle>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
               <Users className="h-5 w-5 text-primary" />
@@ -290,7 +290,7 @@ export default function DashboardPage() {
               {activeClients}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Totale clienti in database
+              Totale lead in database
             </p>
           </CardContent>
         </Card>
@@ -396,7 +396,7 @@ export default function DashboardPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">
-                Clienti Recenti
+                Lead Recenti
               </CardTitle>
               <Link
                 href="/clients"

@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   Receipt,
   ScrollText,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, ADMIN_NAV_ITEMS } from "@/lib/constants";
@@ -33,6 +34,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ClipboardCheck,
   Receipt,
   ScrollText,
+  TrendingUp,
 };
 
 export function MobileNav() {
@@ -48,13 +50,20 @@ export function MobileNav() {
           <span className="sr-only">Menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-65 p-0">
-        <div className="flex h-16 items-center border-b border-border px-6">
-          <span className="text-xl font-bold tracking-tight text-primary">
-            Horizon One
-          </span>
+      <SheetContent side="left" className="w-65 p-0 flex flex-col">
+        {/* Logo — hidden on mobile, matches desktop */}
+        <div className="flex items-center justify-center border-b border-border py-2 px-4">
+          <Link href="/dashboard" onClick={() => setOpen(false)}>
+            <img
+              src="/logo_horizon.png"
+              alt="Horizon One"
+              className="h-14 w-auto object-contain"
+            />
+          </Link>
         </div>
-        <ScrollArea className="h-[calc(100vh-4rem)]">
+
+        {/* Scrollable nav area */}
+        <ScrollArea className="flex-1">
           <nav className="flex flex-col gap-1 p-4">
             {NAV_ITEMS.map((item) => {
               const Icon = iconMap[item.icon];
@@ -79,24 +88,6 @@ export function MobileNav() {
                 </Link>
               );
             })}
-
-            <div className="my-4">
-              <div className="h-px bg-border" />
-            </div>
-
-            <Link
-              href="/settings"
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname === "/settings"
-                  ? "border-l-3 border-primary bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Settings className="h-4 w-4" />
-              Impostazioni
-            </Link>
 
             {isAdmin && (
               <>
@@ -135,6 +126,23 @@ export function MobileNav() {
             )}
           </nav>
         </ScrollArea>
+
+        {/* Settings — pinned to bottom */}
+        <div className="border-t border-border p-4">
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              pathname === "/settings"
+                ? "border-l-3 border-primary bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            Impostazioni
+          </Link>
+        </div>
       </SheetContent>
     </Sheet>
   );

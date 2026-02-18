@@ -57,19 +57,47 @@ export async function updateSession(request: NextRequest) {
 
   if (user) {
     // Check if user has been assigned to an organization
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
       .select("organization_id, is_admin, is_super_admin")
       .eq("id", user.id)
       .single();
 
-    const isPrivileged =
-      profile?.is_admin || profile?.is_super_admin;
+    // DEBUG — remove after fixing
+    console.log("[MIDDLEWARE DEBUG]", {
+      pathname,
+      userId: user.id,
+      userEmail: user.email,
+      profile,
+      profileError: profileError?.message ?? null,
+    });
+
+    // Profile not found yet (trigger may not have fired) — let them through
+    if (!profile) {
+      console.log("[MIDDLEWARE DEBUG] profile is NULL → redirect to /pending-approval");
+      if (!isPendingPage && !isAuthPage) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/pending-approval";
+        return NextResponse.redirect(url);
+      }
+      return supabaseResponse;
+    }
+
+    const isPrivileged = profile.is_admin || profile.is_super_admin;
     const hasPendingApproval =
-      !isPrivileged && !profile?.organization_id;
+      !isPrivileged && !profile.organization_id;
+
+    console.log("[MIDDLEWARE DEBUG]", {
+      isPrivileged,
+      hasPendingApproval,
+      is_admin: profile.is_admin,
+      is_super_admin: profile.is_super_admin,
+      organization_id: profile.organization_id,
+    });
 
     if (hasPendingApproval) {
       // Pending user trying to access dashboard routes → redirect to pending page
+      console.log("[MIDDLEWARE DEBUG] hasPendingApproval=true → redirect to /pending-approval");
       if (!isPendingPage && !isAuthPage) {
         const url = request.nextUrl.clone();
         url.pathname = "/pending-approval";
@@ -78,8 +106,12 @@ export async function updateSession(request: NextRequest) {
     } else {
       // Approved user on auth/pending pages → redirect to dashboard
       if (isAuthPage || isPendingPage) {
+        const dest = isPrivileged && !profile.organization_id
+          ? "/admin"
+          : "/dashboard";
+        console.log("[MIDDLEWARE DEBUG] approved user on auth/pending → redirect to", dest);
         const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
+        url.pathname = dest;
         return NextResponse.redirect(url);
       }
     }

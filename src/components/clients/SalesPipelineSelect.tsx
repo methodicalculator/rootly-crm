@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -8,15 +8,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import type { SalesStage, LostReason } from "@/types";
 
+const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
+  appointment_scheduled: "App. Fissato",
+  appointment_completed: "App. Svolto",
+};
+
+const REVENUE_STAGES: SalesStage[] = ["appointment_completed", "converted"];
+
 interface SalesPipelineSelectProps {
   clientId: string;
   currentStage: SalesStage;
+  currentRevenue?: number | null;
   onStageChange: (newStage: SalesStage) => void;
 }
 
@@ -40,11 +48,21 @@ const LOST_REASONS: LostReason[] = [
 export function SalesPipelineSelect({
   clientId,
   currentStage,
+  currentRevenue,
   onStageChange,
 }: SalesPipelineSelectProps) {
   const [updating, setUpdating] = useState(false);
   const [showLostReason, setShowLostReason] = useState(false);
+  const [revenueValue, setRevenueValue] = useState(
+    currentRevenue != null ? String(currentRevenue) : ""
+  );
+  const [revenueSaved, setRevenueSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Sync if parent prop changes
+  useEffect(() => {
+    setRevenueValue(currentRevenue != null ? String(currentRevenue) : "");
+  }, [currentRevenue]);
   async function updateStage(
     newStage: SalesStage,
     lostReason?: LostReason
@@ -110,6 +128,7 @@ export function SalesPipelineSelect({
   }
 
   const stageCfg = SALES_STAGE_CONFIG[currentStage];
+  const mobileLabel = MOBILE_LABELS[currentStage];
 
   if (updating) {
     return (
@@ -121,13 +140,20 @@ export function SalesPipelineSelect({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-2 md:flex-row md:items-center">
       <Select value={currentStage} onValueChange={handleStageSelect}>
         <SelectTrigger size="sm" className="h-7 gap-1.5 text-xs font-medium">
           <SelectValue>
             <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 ${stageCfg.color}`}>
               <span>{stageCfg.emoji}</span>
-              <span>{stageCfg.label}</span>
+              {mobileLabel ? (
+                <>
+                  <span className="sm:hidden">{mobileLabel}</span>
+                  <span className="hidden sm:inline">{stageCfg.label}</span>
+                </>
+              ) : (
+                <span>{stageCfg.label}</span>
+              )}
             </span>
           </SelectValue>
         </SelectTrigger>
@@ -160,6 +186,47 @@ export function SalesPipelineSelect({
           </SelectContent>
         </Select>
       )}
+
+      {REVENUE_STAGES.includes(currentStage) && (
+        <div className="flex items-center gap-1.5">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              &euro;
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={revenueValue}
+              placeholder="Importo"
+              className="h-7 w-[100px] rounded-md border border-border bg-background pl-6 pr-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "");
+                setRevenueValue(v);
+              }}
+              onBlur={async () => {
+                const parsed = revenueValue ? parseInt(revenueValue, 10) : null;
+                if (parsed === currentRevenue) return;
+                const supabase = createClient();
+                const { error } = await supabase
+                  .from("clients")
+                  .update({ revenue: parsed })
+                  .eq("id", clientId);
+                if (error) {
+                  toast.error("Errore salvataggio compenso");
+                  return;
+                }
+                setRevenueSaved(true);
+                if (savedTimer.current) clearTimeout(savedTimer.current);
+                savedTimer.current = setTimeout(() => setRevenueSaved(false), 2000);
+              }}
+            />
+          </div>
+          {revenueSaved && (
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

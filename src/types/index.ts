@@ -51,6 +51,8 @@ export interface UserProfile {
   role: UserRole;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
+  professional_type: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -110,7 +112,7 @@ export interface Client {
   sales_stage: SalesStage;
   appointment_date: string | null;
   appointment_completed_at: string | null;
-  conversion_amount: number | null;
+  revenue: number | null;
   lost_reason: LostReason | null;
   created_by: string | null;
   created_at: string;
@@ -189,8 +191,8 @@ export interface Notification {
   id: string;
   organization_id: string | null;
   user_id: string;
-  tipo: NotificationType;
-  messaggio: string;
+  type: NotificationType;
+  message: string;
   read: boolean;
   created_at: string;
 }
