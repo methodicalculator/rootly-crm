@@ -43,13 +43,13 @@ export const SALES_STAGE_CONFIG: Record<
   SalesStage,
   { label: string; emoji: string; color: string }
 > = {
-  new: { label: "Nuovo Lead", emoji: "\uD83C\uDD95", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300" },
-  contacted: { label: "Contattato", emoji: "\uD83D\uDCDE", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
-  responded: { label: "Ha Risposto", emoji: "\uD83D\uDCAC", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300" },
-  appointment_scheduled: { label: "Appuntamento Fissato", emoji: "\uD83D\uDCC5", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
-  appointment_completed: { label: "Appuntamento Svolto", emoji: "\u2705", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" },
-  converted: { label: "Cliente Acquisito", emoji: "\uD83D\uDCB0", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
-  lost: { label: "Perso", emoji: "\u274C", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  new: { label: "Nuovo Lead", emoji: "🆕", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300" },
+  contacted: { label: "Non Risponde", emoji: "🔕", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
+  responded: { label: "Ha Risposto", emoji: "💬", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300" },
+  appointment_scheduled: { label: "Appuntamento Fissato", emoji: "📅", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  appointment_completed: { label: "Singola Seduta", emoji: "💆", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  converted: { label: "Percorso Acquistato", emoji: "💰", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
+  lost: { label: "Perso", emoji: "❌", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
 };
 
 export const LOST_REASON_CONFIG: Record<

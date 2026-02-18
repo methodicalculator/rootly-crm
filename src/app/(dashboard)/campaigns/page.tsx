@@ -21,7 +21,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
@@ -74,7 +73,7 @@ function fmtEur(n: number): string {
 
 // ── Page Component ────────────────────────────────────────────────
 export default function CampaignsPage() {
-  const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
+  const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
 
   const [activeTab, setActiveTab] = useState<string>("tutte");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -98,7 +97,9 @@ export default function CampaignsPage() {
     // 1. Campaigns
     const { data: campaignsData } = await getCampaigns(
       effectiveOrgId,
-      isAdmin
+      isAdmin,
+      undefined,
+      staffOrgIds
     );
     const allCampaigns = (campaignsData ?? []) as Campaign[];
     setCampaigns(allCampaigns);
@@ -156,7 +157,7 @@ export default function CampaignsPage() {
     }
     setAggregateMap(aggs);
     setLoading(false);
-  }, [effectiveOrgId, isAdmin]);
+  }, [effectiveOrgId, isAdmin, staffOrgIds]);
 
   useEffect(() => {
     if (orgLoading) return;
@@ -464,16 +465,6 @@ export default function CampaignsPage() {
                                   interval="preserveStartEnd"
                                 />
                                 <YAxis
-                                  yAxisId="left"
-                                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                                  axisLine={{ stroke: "var(--border)" }}
-                                  tickFormatter={(v) =>
-                                    fmtNum(Number(v))
-                                  }
-                                />
-                                <YAxis
-                                  yAxisId="right"
-                                  orientation="right"
                                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                                   axisLine={{ stroke: "var(--border)" }}
                                   allowDecimals={false}
@@ -492,27 +483,7 @@ export default function CampaignsPage() {
                                     "",
                                   ]}
                                 />
-                                <Legend />
                                 <Line
-                                  yAxisId="left"
-                                  type="monotone"
-                                  dataKey="Impressions"
-                                  stroke="#6366F1"
-                                  strokeWidth={2}
-                                  dot={{ r: 2 }}
-                                  activeDot={{ r: 4 }}
-                                />
-                                <Line
-                                  yAxisId="right"
-                                  type="monotone"
-                                  dataKey="Click"
-                                  stroke="#F59E0B"
-                                  strokeWidth={2}
-                                  dot={{ r: 2 }}
-                                  activeDot={{ r: 4 }}
-                                />
-                                <Line
-                                  yAxisId="right"
                                   type="monotone"
                                   dataKey="Lead"
                                   stroke="#10B981"

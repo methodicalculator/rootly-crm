@@ -80,10 +80,8 @@ INSERT INTO organizations (
 CREATE TABLE user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-  is_admin BOOLEAN NOT NULL DEFAULT false,
-  is_super_admin BOOLEAN NOT NULL DEFAULT false,
   access_level TEXT NOT NULL DEFAULT 'owner', -- 'super_admin', 'admin', 'manager', 'owner'
-  role TEXT NOT NULL DEFAULT 'owner', -- 'owner', 'staff', 'admin'
+  role TEXT NOT NULL DEFAULT 'owner', -- 'super_admin', 'admin', 'staff', 'owner'
   full_name TEXT,
   email TEXT,
   phone TEXT,
@@ -129,6 +127,21 @@ CREATE TABLE user_organization_access (
 
 CREATE INDEX idx_user_org_access_user ON user_organization_access(user_id);
 CREATE INDEX idx_user_org_access_org ON user_organization_access(organization_id);
+
+-- ============================================
+-- STAFF ORGANIZATIONS (staff multi-org assignments)
+-- ============================================
+
+CREATE TABLE staff_organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, organization_id)
+);
+
+CREATE INDEX idx_staff_org_user ON staff_organizations(user_id);
+CREATE INDEX idx_staff_org_org ON staff_organizations(organization_id);
 
 -- ============================================
 -- CLIENTS (customers of each organization)
@@ -395,7 +408,7 @@ CREATE INDEX idx_organizations_type ON organizations(type);
 
 -- User profiles
 CREATE INDEX idx_user_profiles_org ON user_profiles(organization_id);
-CREATE INDEX idx_user_profiles_admin ON user_profiles(is_admin);
+CREATE INDEX idx_user_profiles_role ON user_profiles(role);
 
 -- Clients
 CREATE INDEX idx_clients_org ON clients(organization_id);
@@ -461,7 +474,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 CREATE OR REPLACE FUNCTION public.is_admin_user()
 RETURNS BOOLEAN AS $$
   SELECT COALESCE(
-    (SELECT is_admin OR is_super_admin FROM public.user_profiles WHERE id = auth.uid()),
+    (SELECT role IN ('admin', 'super_admin') FROM public.user_profiles WHERE id = auth.uid()),
     false
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;

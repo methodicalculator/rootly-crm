@@ -24,15 +24,22 @@ export default function PendingApprovalPage() {
 
       const { data: profile } = await supabase
         .from("user_profiles")
-        .select("organization_id, is_admin, is_super_admin")
+        .select("organization_id, role")
         .eq("id", user.id)
         .single();
 
       if (!profile) return;
 
       // Admin/super admin should never be on this page
-      if (profile.is_admin || profile.is_super_admin) {
+      if (profile.role === "admin" || profile.role === "super_admin") {
         router.push(profile.organization_id ? "/dashboard" : "/admin");
+        router.refresh();
+        return;
+      }
+
+      // Staff users have no organization_id but are already approved
+      if (profile.role === "staff") {
+        router.push("/dashboard");
         router.refresh();
         return;
       }

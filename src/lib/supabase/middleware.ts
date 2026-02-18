@@ -59,7 +59,7 @@ export async function updateSession(request: NextRequest) {
     // Check if user has been assigned to an organization
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
-      .select("organization_id, is_admin, is_super_admin")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -83,15 +83,15 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse;
     }
 
-    const isPrivileged = profile.is_admin || profile.is_super_admin;
+    const isPrivileged = profile.role === "admin" || profile.role === "super_admin";
+    const isStaff = profile.role === "staff";
     const hasPendingApproval =
-      !isPrivileged && !profile.organization_id;
+      !isPrivileged && !isStaff && !profile.organization_id;
 
     console.log("[MIDDLEWARE DEBUG]", {
       isPrivileged,
       hasPendingApproval,
-      is_admin: profile.is_admin,
-      is_super_admin: profile.is_super_admin,
+      role: profile.role,
       organization_id: profile.organization_id,
     });
 

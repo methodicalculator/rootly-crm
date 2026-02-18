@@ -11,7 +11,6 @@ import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
 import type { Client, SalesStage } from "@/types";
 
 const IN_LAVORAZIONE_STAGES: SalesStage[] = [
-  "contacted",
   "responded",
   "appointment_scheduled",
 ];
@@ -19,6 +18,7 @@ const IN_LAVORAZIONE_STAGES: SalesStage[] = [
 const tabs = [
   { key: "tutti", label: "Tutti" },
   { key: "new", label: "Nuovi Lead" },
+  { key: "contacted", label: "Non Risponde" },
   { key: "in_lavorazione", label: "In Lavorazione" },
   { key: "appointment_completed", label: "Da Fidelizzare" },
   { key: "converted", label: "Acquisiti" },
@@ -27,17 +27,17 @@ const tabs = [
 
 export default function ClientsPage() {
   const [activeTab, setActiveTab] = useState<string>("new");
-  const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
+  const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
-    const { data } = await getClients(effectiveOrgId, isAdmin);
+    const { data } = await getClients(effectiveOrgId, isAdmin, undefined, staffOrgIds);
     setClients((data ?? []) as Client[]);
     setLoading(false);
-  }, [effectiveOrgId, isAdmin]);
+  }, [effectiveOrgId, isAdmin, staffOrgIds]);
 
   useEffect(() => {
     if (orgLoading) return;
@@ -49,6 +49,7 @@ export default function ClientsPage() {
     for (const c of clients) {
       const stage = c.sales_stage ?? "new";
       if (stage === "new") counts.new = (counts.new ?? 0) + 1;
+      else if (stage === "contacted") counts.contacted = (counts.contacted ?? 0) + 1;
       else if (stage === "appointment_completed")
         counts.appointment_completed = (counts.appointment_completed ?? 0) + 1;
       else if (stage === "converted") counts.converted = (counts.converted ?? 0) + 1;

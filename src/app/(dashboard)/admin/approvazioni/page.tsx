@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -60,8 +62,7 @@ export default function ApprovazioniPage() {
       .from("user_profiles")
       .select("*")
       .is("organization_id", null)
-      .eq("is_admin", false)
-      .eq("is_super_admin", false)
+      .not("role", "in", "(admin,super_admin,staff)")
       .order("created_at", { ascending: false });
 
     setPendingUsers((data ?? []) as UserProfile[]);
@@ -84,11 +85,19 @@ export default function ApprovazioniPage() {
     loadOrganizations();
   }, [loadPendingUsers, loadOrganizations]);
 
-  async function approveUser(userId: string, organizationId: string) {
+  async function approveUser(
+    userId: string,
+    opts: { role: "owner" | "staff"; organizationId?: string; staffOrgIds?: string[] }
+  ) {
     const res = await fetch("/api/admin/approve-user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, organizationId }),
+      body: JSON.stringify({
+        userId,
+        role: opts.role,
+        organizationId: opts.organizationId,
+        staffOrgIds: opts.staffOrgIds,
+      }),
     });
 
     if (!res.ok) {
@@ -97,7 +106,11 @@ export default function ApprovazioniPage() {
       return;
     }
 
-    toast.success("Utente approvato e assegnato allo studio!");
+    toast.success(
+      opts.role === "staff"
+        ? "Utente approvato come staff!"
+        : "Utente approvato e assegnato allo studio!"
+    );
     loadPendingUsers();
   }
 
@@ -131,7 +144,10 @@ export default function ApprovazioniPage() {
 
   async function handleOrgCreated(createdOrgId?: string) {
     if (createdOrgId && creatingForUserId) {
-      await approveUser(creatingForUserId, createdOrgId);
+      await approveUser(creatingForUserId, {
+        role: "owner",
+        organizationId: createdOrgId,
+      });
       toast.success("Studio creato e utente approvato!");
       loadOrganizations();
     }
@@ -187,7 +203,7 @@ export default function ApprovazioniPage() {
               key={user.id}
               user={user}
               organizations={organizations}
-              onApprove={approveUser}
+              onApprove={(userId, opts) => approveUser(userId, opts)}
               onCreateStudio={() => openCreateStudioDialog(user)}
               onReject={rejectUser}
             />
@@ -220,20 +236,42 @@ function PendingUserCard({
 }: {
   user: UserProfile;
   organizations: OrgOption[];
-  onApprove: (userId: string, organizationId: string) => Promise<void>;
+  onApprove: (
+    userId: string,
+    opts: { role: "owner" | "staff"; organizationId?: string; staffOrgIds?: string[] }
+  ) => Promise<void>;
   onCreateStudio: () => void;
   onReject: (userId: string) => Promise<void>;
 }) {
+  const [selectedRole, setSelectedRole] = useState<"owner" | "staff">("owner");
   const [selectedOrg, setSelectedOrg] = useState("");
+  const [selectedStaffOrgs, setSelectedStaffOrgs] = useState<string[]>([]);
   const [approving, setApproving] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
+  function toggleStaffOrg(orgId: string) {
+    setSelectedStaffOrgs((prev) =>
+      prev.includes(orgId)
+        ? prev.filter((id) => id !== orgId)
+        : [...prev, orgId]
+    );
+  }
+
+  const canApprove =
+    selectedRole === "owner"
+      ? !!selectedOrg
+      : selectedStaffOrgs.length > 0;
+
   async function handleApprove() {
-    if (!selectedOrg) return;
+    if (!canApprove) return;
     setApproving(true);
     try {
-      await onApprove(user.id, selectedOrg);
+      if (selectedRole === "owner") {
+        await onApprove(user.id, { role: "owner", organizationId: selectedOrg });
+      } else {
+        await onApprove(user.id, { role: "staff", staffOrgIds: selectedStaffOrgs });
+      }
     } finally {
       setApproving(false);
     }
@@ -287,29 +325,79 @@ function PendingUserCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Role selection */}
           <div>
-            <label className="mb-2 block text-sm font-medium">
-              Assegna a studio:
-            </label>
-            <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+            <label className="mb-2 block text-sm font-medium">Ruolo:</label>
+            <Select
+              value={selectedRole}
+              onValueChange={(v) => setSelectedRole(v as "owner" | "staff")}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Seleziona studio..." />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {organizations.map((org) => (
-                  <SelectItem key={org.id} value={org.id}>
-                    {org.name}
-                    {org.owner_name ? ` — ${org.owner_name}` : ""}
-                  </SelectItem>
-                ))}
+                <SelectItem value="owner">Titolare</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
+          {/* Org assignment — single select for owner, checkboxes for staff */}
+          {selectedRole === "owner" ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Assegna a studio:
+              </label>
+              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona studio..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                      {org.owner_name ? ` — ${org.owner_name}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Assegna agli studi:
+              </label>
+              {organizations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nessuno studio disponibile.
+                </p>
+              ) : (
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
+                  {organizations.map((org) => (
+                    <div key={org.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`staff-org-${user.id}-${org.id}`}
+                        checked={selectedStaffOrgs.includes(org.id)}
+                        onCheckedChange={() => toggleStaffOrg(org.id)}
+                      />
+                      <Label
+                        htmlFor={`staff-org-${user.id}-${org.id}`}
+                        className="text-sm font-normal"
+                      >
+                        {org.name}
+                        {org.owner_name ? ` — ${org.owner_name}` : ""}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               onClick={handleApprove}
-              disabled={!selectedOrg || approving}
+              disabled={!canApprove || approving}
               className="flex-1"
             >
               {approving ? (
@@ -317,15 +405,17 @@ function PendingUserCard({
               ) : (
                 <UserCheck className="mr-2 h-4 w-4" />
               )}
-              Approva e Assegna
+              {selectedRole === "staff" ? "Approva come Staff" : "Approva e Assegna"}
             </Button>
-            <Button
-              onClick={onCreateStudio}
-              className="flex-1 bg-[#97BC0D] text-white hover:bg-[#87ab00]"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Approva e Crea Studio
-            </Button>
+            {selectedRole === "owner" && (
+              <Button
+                onClick={onCreateStudio}
+                className="flex-1 bg-[#97BC0D] text-white hover:bg-[#87ab00]"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Approva e Crea Studio
+              </Button>
+            )}
             <Button
               variant="destructive"
               onClick={() => setRejectDialogOpen(true)}

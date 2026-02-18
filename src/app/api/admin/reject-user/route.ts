@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("is_admin, is_super_admin")
+    .select("role")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_admin && !profile?.is_super_admin) {
+  if (profile?.role !== "admin" && profile?.role !== "super_admin") {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 

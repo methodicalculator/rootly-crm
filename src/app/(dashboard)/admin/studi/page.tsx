@@ -9,6 +9,15 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
   Building2,
   Users,
   UserPlus,
@@ -21,6 +30,8 @@ import {
   CalendarDays,
   Plus,
   Pencil,
+  X,
+  UserCog,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getOrganizations } from "@/lib/supabase/queries";
@@ -30,12 +41,20 @@ import {
   ORGANIZATION_TYPE_CONFIG,
 } from "@/lib/constants";
 import { OrganizationFormDialog } from "@/components/admin/organization-form-dialog";
+import { toast } from "sonner";
 import type { Organization, OrganizationType, OrganizationStatus } from "@/types";
+
+interface StaffMember {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
 
 interface OrgWithStats extends Organization {
   clientCount: number;
   leadsMonth: number;
   activeCampaigns: number;
+  assignedStaff: StaffMember[];
 }
 
 const STATUS_TABS = [
@@ -63,6 +82,13 @@ export default function GestioneStudiPage() {
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
+
+  // Staff assignment state
+  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
+  const [staffDialogOrgId, setStaffDialogOrgId] = useState<string | null>(null);
+  const [allStaffUsers, setAllStaffUsers] = useState<StaffMember[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [staffSaving, setStaffSaving] = useState(false);
 
   const fetchOrgs = useCallback(async () => {
     if (!userId) return;
@@ -97,7 +123,7 @@ export default function GestioneStudiPage() {
 
     const withStats = await Promise.all(
       allOrgs.map(async (org) => {
-        const [clientsRes, leadsRes, campaignsRes] = await Promise.all([
+        const [clientsRes, leadsRes, campaignsRes, staffRes] = await Promise.all([
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
@@ -112,13 +138,27 @@ export default function GestioneStudiPage() {
             .select("id", { count: "exact", head: true })
             .eq("organization_id", org.id)
             .eq("status", "attiva"),
+          supabase
+            .from("staff_organizations")
+            .select("user_id, user_profiles(id, full_name, email)")
+            .eq("organization_id", org.id),
         ]);
+
+        const assignedStaff: StaffMember[] = (staffRes.data ?? []).map((row) => {
+          const p = row.user_profiles as unknown as StaffMember | null;
+          return {
+            id: p?.id ?? row.user_id,
+            full_name: p?.full_name ?? null,
+            email: p?.email ?? null,
+          };
+        });
 
         return {
           ...org,
           clientCount: clientsRes.count ?? 0,
           leadsMonth: leadsRes.count ?? 0,
           activeCampaigns: campaignsRes.count ?? 0,
+          assignedStaff,
         };
       })
     );
@@ -135,6 +175,62 @@ export default function GestioneStudiPage() {
   async function handleImpersonate(orgId: string) {
     setImpersonatingId(orgId);
     await startImpersonate(orgId);
+  }
+
+  async function openStaffDialog(orgId: string, currentStaff: StaffMember[]) {
+    setStaffDialogOrgId(orgId);
+    setSelectedStaffIds([]);
+    setStaffDialogOpen(true);
+
+    // Fetch all staff users not already assigned to this org
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("user_profiles")
+      .select("id, full_name, email")
+      .eq("role", "staff");
+
+    const currentIds = new Set(currentStaff.map((s) => s.id));
+    setAllStaffUsers(
+      ((data ?? []) as StaffMember[]).filter((u) => !currentIds.has(u.id))
+    );
+  }
+
+  async function handleAssignStaff() {
+    if (!staffDialogOrgId || selectedStaffIds.length === 0) return;
+    setStaffSaving(true);
+    try {
+      const supabase = createClient();
+      const rows = selectedStaffIds.map((uid) => ({
+        user_id: uid,
+        organization_id: staffDialogOrgId,
+      }));
+      const { error } = await supabase.from("staff_organizations").insert(rows);
+      if (error) {
+        toast.error("Errore nell'assegnazione: " + error.message);
+        return;
+      }
+      toast.success("Staff assegnato con successo!");
+      setStaffDialogOpen(false);
+      fetchOrgs();
+    } finally {
+      setStaffSaving(false);
+    }
+  }
+
+  async function handleRemoveStaff(orgId: string, staffUserId: string) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("staff_organizations")
+      .delete()
+      .eq("organization_id", orgId)
+      .eq("user_id", staffUserId);
+
+    if (error) {
+      toast.error("Errore nella rimozione: " + error.message);
+      return;
+    }
+    toast.success("Staff rimosso dallo studio.");
+    fetchOrgs();
   }
 
   const filtered =
@@ -382,6 +478,48 @@ export default function GestioneStudiPage() {
                         />
                       )}
                     </div>
+
+                    {/* Staff Assegnato */}
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                          <UserCog className="h-4 w-4" />
+                          Staff Assegnato ({org.assignedStaff.length})
+                        </h4>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openStaffDialog(org.id, org.assignedStaff)}
+                        >
+                          <Plus className="mr-1 h-3.5 w-3.5" />
+                          Assegna Staff
+                        </Button>
+                      </div>
+                      {org.assignedStaff.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Nessuno staff assegnato a questo studio.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {org.assignedStaff.map((staff) => (
+                            <span
+                              key={staff.id}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-xs"
+                            >
+                              {staff.full_name || staff.email || "Utente"}
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                                onClick={() => handleRemoveStaff(org.id, staff.id)}
+                                title="Rimuovi staff"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -396,6 +534,57 @@ export default function GestioneStudiPage() {
         onSuccess={fetchOrgs}
         editingOrg={editingOrg}
       />
+
+      {/* Staff assignment dialog */}
+      <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assegna Staff</DialogTitle>
+          </DialogHeader>
+          {allStaffUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Nessun utente staff disponibile da assegnare.
+            </p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {allStaffUsers.map((staff) => (
+                <div key={staff.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`assign-staff-${staff.id}`}
+                    checked={selectedStaffIds.includes(staff.id)}
+                    onCheckedChange={() =>
+                      setSelectedStaffIds((prev) =>
+                        prev.includes(staff.id)
+                          ? prev.filter((id) => id !== staff.id)
+                          : [...prev, staff.id]
+                      )
+                    }
+                  />
+                  <Label
+                    htmlFor={`assign-staff-${staff.id}`}
+                    className="text-sm font-normal"
+                  >
+                    {staff.full_name || "Nome non fornito"}
+                    {staff.email ? ` (${staff.email})` : ""}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setStaffDialogOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              disabled={selectedStaffIds.length === 0 || staffSaving}
+              onClick={handleAssignStaff}
+            >
+              {staffSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Assegna ({selectedStaffIds.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

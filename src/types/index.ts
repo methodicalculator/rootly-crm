@@ -40,14 +40,12 @@ export interface Organization {
 // User profile types
 // ============================================
 
-export type UserRole = "owner" | "staff" | "admin";
+export type UserRole = "super_admin" | "admin" | "staff" | "owner";
 export type AccessLevel = "super_admin" | "admin" | "manager" | "owner";
 
 export interface UserProfile {
   id: string;
   organization_id: string | null;
-  is_admin: boolean;
-  is_super_admin: boolean;
   access_level: AccessLevel;
   role: UserRole;
   full_name: string | null;
@@ -62,6 +60,17 @@ export interface UserProfile {
 // Joined profile with organization data
 export interface UserProfileWithOrg extends UserProfile {
   organizations: Pick<Organization, "id" | "name" | "type" | "status"> | null;
+}
+
+// ============================================
+// Staff organization assignments
+// ============================================
+
+export interface StaffOrganization {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  created_at: string;
 }
 
 // ============================================

@@ -36,13 +36,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { createClient } from "@/lib/supabase/client";
 import { getClients } from "@/lib/supabase/queries";
 import type { Client, SalesStage } from "@/types";
-
-const MONTH_NAMES = [
-  "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-  "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
-];
 
 const FULL_MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -55,15 +51,30 @@ const IN_LAVORAZIONE_STAGES: SalesStage[] = [
   "appointment_scheduled",
 ];
 
-const FUNNEL_COLORS = ["#6B7280", "#3B82F6", "#F89627", "#97BC0D", "#EF4444"];
 
 export default function AnalyticsPage() {
   const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
   const [clients, setClients] = useState<Client[]>([]);
+  const [contractStartDate, setContractStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeFunnelIndex, setActiveFunnelIndex] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+
+    // Fetch contract_start_date for the current org
+    if (effectiveOrgId) {
+      const supabase = createClient();
+      const { data: orgData } = await supabase
+        .from("organizations")
+        .select("contract_start_date")
+        .eq("id", effectiveOrgId)
+        .single();
+      setContractStartDate(orgData?.contract_start_date ?? null);
+    } else {
+      setContractStartDate(null);
+    }
+
     const { data } = await getClients(effectiveOrgId, isAdmin);
     setClients((data ?? []) as Client[]);
     setLoading(false);
@@ -110,9 +121,10 @@ export default function AnalyticsPage() {
       ? ((appScheduled + appCompleted + converted) / respondedTotal) * 100
       : 0;
 
-    // Tasso Fidelizzazione: converted / appointment_completed * 100
-    const retentionRate = appCompleted > 0
-      ? (converted / appCompleted) * 100
+    // Tasso Fidelizzazione: converted / (appointment_completed + converted) * 100
+    const retentionBase = appCompleted + converted;
+    const retentionRate = retentionBase > 0
+      ? (converted / retentionBase) * 100
       : 0;
 
     return { conversionRate, responseRate, appointmentRate, retentionRate };
@@ -143,29 +155,48 @@ export default function AnalyticsPage() {
     ];
   }, [clients]);
 
-  // === Trend Lead (last 6 months) ===
+  // === Trend Lead (30-day intervals from contract start) ===
   const trendData = useMemo(() => {
     const now = new Date();
-    const months: { key: string; label: string; count: number }[] = [];
+    const start = contractStartDate ? new Date(contractStartDate) : null;
+    if (!start) return [];
 
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      months.push({
-        key,
-        label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
+    const startMs = start.getTime();
+    const MS_30_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+    // Build intervals from contract start to today
+    const intervals: { from: Date; to: Date; label: string; count: number }[] = [];
+    let periodStart = startMs;
+    let idx = 0;
+    while (periodStart < now.getTime()) {
+      const periodEnd = Math.min(periodStart + MS_30_DAYS, now.getTime());
+      const fromDate = new Date(periodStart);
+      const toDate = new Date(periodEnd);
+      const fromLabel = `${fromDate.getDate()}/${fromDate.getMonth() + 1}`;
+      const toLabel = `${toDate.getDate()}/${toDate.getMonth() + 1}`;
+      intervals.push({
+        from: fromDate,
+        to: toDate,
+        label: `Giorni ${idx * 30 + 1}-${(idx + 1) * 30} (${fromLabel}–${toLabel})`,
         count: 0,
       });
+      periodStart += MS_30_DAYS;
+      idx++;
     }
 
+    // Count clients per interval
     for (const c of clients) {
-      const created = c.created_at.slice(0, 7); // "YYYY-MM"
-      const month = months.find((m) => m.key === created);
-      if (month) month.count++;
+      const createdMs = new Date(c.created_at).getTime();
+      for (const interval of intervals) {
+        if (createdMs >= interval.from.getTime() && createdMs < interval.to.getTime()) {
+          interval.count++;
+          break;
+        }
+      }
     }
 
-    return months.map((m) => ({ mese: m.label, lead: m.count }));
-  }, [clients]);
+    return intervals.map((i) => ({ mese: i.label, lead: i.count }));
+  }, [clients, contractStartDate]);
 
   // === Revenue data ===
   const revenueData = useMemo(() => {
@@ -182,33 +213,45 @@ export default function AnalyticsPage() {
     };
   }, [clients]);
 
-  // === Monthly conversion table (last 6 months) ===
+  // === Monthly conversion table (calendar months from contract start, max 3) ===
+  const CLIENT_STAGES: SalesStage[] = ["appointment_completed", "converted"];
+
   const monthlyTable = useMemo(() => {
     const now = new Date();
+    const start = contractStartDate ? new Date(contractStartDate) : null;
+    if (!start) return [];
+
     const rows: {
       label: string;
       leads: number;
-      converted: number;
+      clienti: number;
       convRate: number;
       revenue: number;
     }[] = [];
 
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    // From the month of contract start, up to max 3 months already started
+    const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+      // Only include months that have already started
+      if (d > now) break;
+
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = `${FULL_MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 
       const monthClients = clients.filter((c) => c.created_at.slice(0, 7) === key);
       const leads = monthClients.length;
-      const converted = monthClients.filter((c) => c.sales_stage === "converted").length;
-      const convRate = leads > 0 ? (converted / leads) * 100 : 0;
+      const clienti = monthClients.filter((c) =>
+        CLIENT_STAGES.includes(c.sales_stage as SalesStage)
+      ).length;
+      const convRate = leads > 0 ? (clienti / leads) * 100 : 0;
       const revenue = monthClients.reduce((sum, c) => sum + (c.revenue ?? 0), 0);
 
-      rows.push({ label, leads, converted, convRate, revenue });
+      rows.push({ label, leads, clienti, convRate, revenue });
     }
 
     return rows;
-  }, [clients]);
+  }, [clients, contractStartDate]);
 
   // === Loading state ===
   if (loading || orgLoading) {
@@ -251,22 +294,21 @@ export default function AnalyticsPage() {
       </div>
 
       {/* ====== SEZIONE 1 - KPI Cards ====== */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Tasso Conversione */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {/* Lead Totali */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasso Conversione
+              Lead Totali
             </CardTitle>
-            <div className="rounded-lg bg-green-50 dark:bg-green-950/50 p-2">
-              <TrendingUp className="h-5 w-5 text-[#10B981]" />
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-950/50 p-2">
+              <Users className="h-5 w-5 text-[#6B7280]" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-[32px] font-bold leading-tight text-foreground">
-              {kpis.conversionRate.toFixed(1)}%
+              {clients.length}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Lead convertiti in clienti</p>
           </CardContent>
         </Card>
 
@@ -306,6 +348,24 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
+        {/* Tasso Conversione */}
+        <Card className="bg-card shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Tasso Conversione
+            </CardTitle>
+            <div className="rounded-lg bg-green-50 dark:bg-green-950/50 p-2">
+              <TrendingUp className="h-5 w-5 text-[#10B981]" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-[32px] font-bold leading-tight text-foreground">
+              {kpis.conversionRate.toFixed(1)}%
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Lead convertiti in clienti</p>
+          </CardContent>
+        </Card>
+
         {/* Tasso Fidelizzazione */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -320,7 +380,7 @@ export default function AnalyticsPage() {
             <div className="text-[32px] font-bold leading-tight text-foreground">
               {kpis.retentionRate.toFixed(1)}%
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Appuntamenti convertiti in clienti</p>
+            <p className="mt-1 text-xs text-muted-foreground">Sedute singole convertite in percorso</p>
           </CardContent>
         </Card>
       </div>
@@ -331,7 +391,7 @@ export default function AnalyticsPage() {
         <Card className="bg-card shadow-sm">
           <CardHeader>
             <CardTitle className="text-base font-semibold text-foreground">
-              Pipeline Funnel
+              Stato dei Lead
             </CardTitle>
             <p className="text-sm text-muted-foreground">Distribuzione lead per fase</p>
           </CardHeader>
@@ -354,21 +414,38 @@ export default function AnalyticsPage() {
                     width={110}
                   />
                   <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                      backgroundColor: "var(--card)",
-                      color: "var(--foreground)",
-                    }}
-                    formatter={(value) => {
-                      const pct = funnelTotal > 0 ? ((Number(value) / funnelTotal) * 100).toFixed(1) : "0";
-                      return [`${value} (${pct}%)`, "Lead"];
+                    cursor={false}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length || payload[0].value === 0) return null;
+                      const val = Number(payload[0].value);
+                      const pct = funnelTotal > 0 ? ((val / funnelTotal) * 100).toFixed(1) : "0";
+                      return (
+                        <div style={{
+                          borderRadius: "8px",
+                          border: "1px solid var(--border)",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                          backgroundColor: "var(--card)",
+                          color: "var(--foreground)",
+                          padding: "8px 12px",
+                          fontSize: "13px",
+                        }}>
+                          <span style={{ fontWeight: 600 }}>{payload[0].payload.name}</span>: {val} ({pct}%)
+                        </div>
+                      );
                     }}
                   />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  <Bar
+                    dataKey="value"
+                    radius={[0, 4, 4, 0]}
+                    onMouseLeave={() => setActiveFunnelIndex(null)}
+                  >
                     {funnelData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={FUNNEL_COLORS[index]} />
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={activeFunnelIndex === index ? "#F89627" : "#2563eb"}
+                        opacity={activeFunnelIndex !== null && activeFunnelIndex !== index ? 0.5 : 1}
+                        onMouseEnter={() => setActiveFunnelIndex(index)}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
@@ -383,7 +460,11 @@ export default function AnalyticsPage() {
             <CardTitle className="text-base font-semibold text-foreground">
               Trend Lead
             </CardTitle>
-            <p className="text-sm text-muted-foreground">Ultimi 6 mesi</p>
+            <p className="text-sm text-muted-foreground">
+              {contractStartDate
+                ? `Periodi di 30 giorni dal ${new Date(contractStartDate).toLocaleDateString("it-IT")}`
+                : "Nessuna data di inizio contratto"}
+            </p>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -475,7 +556,11 @@ export default function AnalyticsPage() {
           <CardTitle className="text-base font-semibold text-foreground">
             Conversioni per Mese
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Ultimi 6 mesi</p>
+          <p className="text-sm text-muted-foreground">
+            {contractStartDate
+              ? `Dal ${new Date(contractStartDate).toLocaleDateString("it-IT")} (max 3 mesi)`
+              : "Nessuna data di inizio contratto"}
+          </p>
         </CardHeader>
         <CardContent>
           <Table>
@@ -483,7 +568,7 @@ export default function AnalyticsPage() {
               <TableRow>
                 <TableHead>Mese</TableHead>
                 <TableHead className="text-right">Lead</TableHead>
-                <TableHead className="text-right">Acquisiti</TableHead>
+                <TableHead className="text-right">Clienti</TableHead>
                 <TableHead className="text-right">Tasso Conv.</TableHead>
                 <TableHead className="text-right">Incasso</TableHead>
               </TableRow>
@@ -493,7 +578,7 @@ export default function AnalyticsPage() {
                 <TableRow key={row.label}>
                   <TableCell className="font-medium">{row.label}</TableCell>
                   <TableCell className="text-right">{row.leads}</TableCell>
-                  <TableCell className="text-right">{row.converted}</TableCell>
+                  <TableCell className="text-right">{row.clienti}</TableCell>
                   <TableCell className="text-right">{row.convRate.toFixed(1)}%</TableCell>
                   <TableCell className="text-right">
                     {row.revenue > 0

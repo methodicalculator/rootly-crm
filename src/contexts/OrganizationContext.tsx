@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { AccessLevel, Organization } from "@/types";
+import type { AccessLevel, Organization, UserRole } from "@/types";
 
 const LS_KEY = "horizon_impersonating_org_id";
 
@@ -20,6 +20,7 @@ interface OrganizationContextType {
   organizationId: string | null;
   organization: OrganizationSummary | null;
   userId: string | null;
+  role: UserRole | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   accessLevel: AccessLevel | null;
@@ -28,6 +29,8 @@ interface OrganizationContextType {
   impersonatingOrgId: string | null;
   /** Org IDs assegnati al manager (vuoto per altri ruoli) */
   managerOrgIds: string[];
+  /** Org IDs assegnati allo staff (vuoto per altri ruoli) */
+  staffOrgIds: string[];
   startImpersonate: (orgId: string) => Promise<void>;
   stopImpersonate: () => void;
   /** organization_id effettivo da usare nelle query (impersonate se attivo, altrimenti proprio) */
@@ -38,6 +41,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizationId: null,
   organization: null,
   userId: null,
+  role: null,
   isAdmin: false,
   isSuperAdmin: false,
   accessLevel: null,
@@ -45,6 +49,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   loading: true,
   impersonatingOrgId: null,
   managerOrgIds: [],
+  staffOrgIds: [],
   startImpersonate: async () => {},
   stopImpersonate: () => {},
   effectiveOrgId: null,
@@ -58,15 +63,23 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [impersonatingOrgId, setImpersonatingOrgId] = useState<string | null>(null);
   const [managerOrgIds, setManagerOrgIds] = useState<string[]>([]);
+  const [staffOrgIds, setStaffOrgIds] = useState<string[]>([]);
 
   const canImpersonate = isSuperAdmin;
 
   // effectiveOrgId: per admin/super_admin non in impersonate → null (vede tutto),
-  // per admin in impersonate → orgId dello studio, per utente studio → la propria org
-  const effectiveOrgId = isAdmin || isSuperAdmin ? impersonatingOrgId : organizationId;
+  // per admin in impersonate → orgId dello studio, per staff → null (filtra via staffOrgIds),
+  // per utente studio → la propria org
+  const isStaff = role === "staff";
+  const effectiveOrgId = isAdmin || isSuperAdmin
+    ? impersonatingOrgId
+    : isStaff
+      ? null
+      : organizationId;
 
   useEffect(() => {
     const loadUserOrganization = async () => {
@@ -80,7 +93,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
         const { data: profile, error: profileError } = await supabase
           .from("user_profiles")
-          .select("organization_id, is_admin, is_super_admin, access_level, organizations(id, name, type, status)")
+          .select("organization_id, role, access_level, organizations(id, name, type, status)")
           .eq("id", user.id)
           .single();
 
@@ -90,8 +103,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           userEmail: user.email,
           profile: profile ? {
             organization_id: profile.organization_id,
-            is_admin: profile.is_admin,
-            is_super_admin: profile.is_super_admin,
+            role: profile.role,
             access_level: profile.access_level,
           } : null,
           profileError: profileError?.message ?? null,
@@ -99,12 +111,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
         if (profile) {
           setOrganizationId(profile.organization_id);
-          const superAdmin = profile.is_super_admin ?? false;
-          const admin = superAdmin || (profile.is_admin ?? false);
+          const userRole = (profile.role as string) ?? "owner";
+          const superAdmin = userRole === "super_admin";
+          const admin = superAdmin || userRole === "admin";
           const level = (profile.access_level as AccessLevel) ?? null;
           setIsSuperAdmin(superAdmin);
           setIsAdmin(admin);
           setAccessLevel(level);
+          setRole(userRole as UserRole);
 
           const org = profile.organizations as unknown as OrganizationSummary | null;
           setOrganization(org);
@@ -116,6 +130,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               .select("organization_id")
               .eq("user_id", user.id);
             setManagerOrgIds((accessRows ?? []).map((r) => r.organization_id));
+          }
+
+          // Carica org assegnate per staff
+          if (userRole === "staff") {
+            const { data: staffRows } = await supabase
+              .from("staff_organizations")
+              .select("organization_id")
+              .eq("user_id", user.id);
+            setStaffOrgIds((staffRows ?? []).map((r) => r.organization_id));
           }
 
           // Ripristina impersonation da localStorage (solo super admin)
@@ -206,6 +229,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         organizationId,
         organization,
         userId,
+        role,
         isAdmin,
         isSuperAdmin,
         accessLevel,
@@ -213,6 +237,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         loading,
         impersonatingOrgId,
         managerOrgIds,
+        staffOrgIds,
         startImpersonate,
         stopImpersonate,
         effectiveOrgId,

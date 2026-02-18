@@ -16,7 +16,8 @@ import type { SalesStage, LostReason } from "@/types";
 
 const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
   appointment_scheduled: "App. Fissato",
-  appointment_completed: "App. Svolto",
+  appointment_completed: "Singola Sed.",
+  converted: "Percorso Acq.",
 };
 
 const REVENUE_STAGES: SalesStage[] = ["appointment_completed", "converted"];
@@ -31,7 +32,6 @@ interface SalesPipelineSelectProps {
 const STAGE_ORDER: SalesStage[] = [
   "new",
   "contacted",
-  "responded",
   "appointment_scheduled",
   "appointment_completed",
   "converted",
@@ -89,6 +89,11 @@ export function SalesPipelineSelect({
       }
       if (newStage === "lost") {
         updates.lost_reason = lostReason ?? null;
+      }
+
+      // Azzera revenue per stage senza incasso
+      if (!REVENUE_STAGES.includes(newStage)) {
+        updates.revenue = null;
       }
 
       const { error } = await supabase

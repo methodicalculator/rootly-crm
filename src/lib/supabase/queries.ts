@@ -13,7 +13,8 @@ export function getOrgFilteredQuery(
   tableName: string,
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
   const supabase = createClient();
   let query = supabase.from(tableName).select("*");
@@ -21,6 +22,9 @@ export function getOrgFilteredQuery(
   if (effectiveOrgId) {
     // Impersonate attivo O utente studio → filtra per singola org
     query = query.eq("organization_id", effectiveOrgId);
+  } else if (!isAdmin && staffOrgIds && staffOrgIds.length > 0) {
+    // Staff → filtra per org assegnate
+    query = query.in("organization_id", staffOrgIds);
   } else if (!isAdmin && managerOrgIds && managerOrgIds.length > 0) {
     // Manager senza impersonate → filtra per org assegnate
     query = query.in("organization_id", managerOrgIds);
@@ -40,9 +44,10 @@ export function getOrgFilteredQuery(
 export async function getClients(
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("clients", effectiveOrgId, isAdmin, managerOrgIds).order(
+  return getOrgFilteredQuery("clients", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
     "created_at",
     { ascending: false }
   );
@@ -51,9 +56,10 @@ export async function getClients(
 export async function getCampaigns(
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("campaigns", effectiveOrgId, isAdmin, managerOrgIds).order(
+  return getOrgFilteredQuery("campaigns", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
     "created_at",
     { ascending: false }
   );
@@ -62,9 +68,10 @@ export async function getCampaigns(
 export async function getAppointments(
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("appointments", effectiveOrgId, isAdmin, managerOrgIds).order(
+  return getOrgFilteredQuery("appointments", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
     "start_time",
     { ascending: true }
   );
@@ -73,9 +80,10 @@ export async function getAppointments(
 export async function getCommunications(
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("communications", effectiveOrgId, isAdmin, managerOrgIds).order(
+  return getOrgFilteredQuery("communications", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
     "data_comunicazione",
     { ascending: false }
   );
@@ -84,9 +92,10 @@ export async function getCommunications(
 export async function getEvents(
   effectiveOrgId: string | null,
   isAdmin: boolean,
-  managerOrgIds?: string[]
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("events", effectiveOrgId, isAdmin, managerOrgIds).order(
+  return getOrgFilteredQuery("events", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
     "start_at",
     { ascending: true }
   );
