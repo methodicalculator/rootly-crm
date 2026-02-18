@@ -50,6 +50,8 @@ export default function GestioneStudiPage() {
     canImpersonate,
     startImpersonate,
     accessLevel,
+    isAdmin,
+    isSuperAdmin,
     userId,
     organizationId,
     loading: orgLoading,
@@ -66,8 +68,13 @@ export default function GestioneStudiPage() {
     if (!userId) return;
     setLoading(true);
 
+    // Derive accessLevel from admin flags when the DB column is null
+    const effectiveAccessLevel =
+      accessLevel ??
+      (isSuperAdmin ? "super_admin" : isAdmin ? "admin" : null);
+
     const { data } = await getOrganizations({
-      accessLevel,
+      accessLevel: effectiveAccessLevel,
       userId,
       organizationId,
     });
@@ -118,7 +125,7 @@ export default function GestioneStudiPage() {
 
     setOrgs(withStats);
     setLoading(false);
-  }, [accessLevel, userId, organizationId]);
+  }, [accessLevel, isAdmin, isSuperAdmin, userId, organizationId]);
 
   useEffect(() => {
     if (orgLoading) return;
