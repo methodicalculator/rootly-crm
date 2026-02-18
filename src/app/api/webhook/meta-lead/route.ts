@@ -27,13 +27,25 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
+
+  // meta_page_id: body takes priority, then query param
+  const metaPageId =
+    data.meta_page_id || request.nextUrl.searchParams.get("meta_page_id");
+
+  if (!metaPageId) {
+    return NextResponse.json(
+      { success: false, error: "meta_page_id is required (body or query param)" },
+      { status: 400 }
+    );
+  }
+
   const supabase = createAdminClient();
 
   // Resolve organization by meta_page_id
   const { data: org, error: orgError } = await supabase
     .from("organizations")
     .select("id, status")
-    .eq("meta_page_id", data.meta_page_id)
+    .eq("meta_page_id", metaPageId)
     .single();
 
   if (orgError || !org) {
