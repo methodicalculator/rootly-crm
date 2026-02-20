@@ -35,12 +35,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { getClients } from "@/lib/supabase/queries";
 import { toRomeDateStr } from "@/lib/date-utils";
-import { subDays, startOfDay, endOfDay } from "date-fns";
 import type { Client, SalesStage } from "@/types";
 
 const FULL_MONTH_NAMES = [
@@ -54,53 +51,35 @@ const IN_LAVORAZIONE_STAGES: SalesStage[] = [
   "appointment_scheduled",
 ];
 
-
-export default function AnalyticsPage() {
-  const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
+export function StudioAnalyticsTab({ organizationId }: { organizationId: string }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [contractStartDate, setContractStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeFunnelIndex, setActiveFunnelIndex] = useState<number | null>(null);
-  const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 29), to: new Date() });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // Fetch contract_start_date for the current org
-    if (effectiveOrgId) {
-      const supabase = createClient();
-      const { data: orgData } = await supabase
-        .from("organizations")
-        .select("contract_start_date")
-        .eq("id", effectiveOrgId)
-        .single();
-      setContractStartDate(orgData?.contract_start_date ?? null);
-    } else {
-      setContractStartDate(null);
-    }
+    const supabase = createClient();
+    const { data: orgData } = await supabase
+      .from("organizations")
+      .select("contract_start_date")
+      .eq("id", organizationId)
+      .single();
+    setContractStartDate(orgData?.contract_start_date ?? null);
 
-    const { data } = await getClients(effectiveOrgId, isAdmin);
+    const { data } = await getClients(organizationId, false);
     setClients((data ?? []) as Client[]);
     setLoading(false);
-  }, [effectiveOrgId, isAdmin]);
+  }, [organizationId]);
 
   useEffect(() => {
-    if (orgLoading) return;
     fetchData();
-  }, [orgLoading, fetchData]);
-
-  // === Date-filtered clients ===
-  const filteredClients = useMemo(() =>
-    clients.filter((c) => {
-      const d = new Date(c.created_at);
-      return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
-    }),
-    [clients, dateRange]
-  );
+  }, [fetchData]);
 
   // === KPI calculations ===
   const kpis = useMemo(() => {
-    const total = filteredClients.length;
+    const total = clients.length;
     if (total === 0) {
       return {
         conversionRate: 0,
@@ -111,7 +90,7 @@ export default function AnalyticsPage() {
     }
 
     const stageCounts: Record<string, number> = {};
-    for (const c of filteredClients) {
+    for (const c of clients) {
       const stage = c.sales_stage ?? "new";
       stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
     }
@@ -122,26 +101,19 @@ export default function AnalyticsPage() {
     const appCompleted = stageCounts["appointment_completed"] ?? 0;
     const lost = stageCounts["lost"] ?? 0;
 
-    // Tasso Conversione: converted / totale * 100
     const conversionRate = (converted / total) * 100;
-
-    // Tasso Risposta: (responded + app_scheduled + app_completed + converted + lost) / totale * 100
     const respondedTotal = responded + appScheduled + appCompleted + converted + lost;
     const responseRate = (respondedTotal / total) * 100;
-
-    // Tasso Appuntamenti: (app_scheduled + app_completed + converted) / totale * 100
     const appointmentRate = ((appScheduled + appCompleted + converted) / total) * 100;
-
-    // Tasso Fidelizzazione: percorsi venduti (converted) / clienti totali * 100
     const retentionRate = (converted / total) * 100;
 
     return { conversionRate, responseRate, appointmentRate, retentionRate };
-  }, [filteredClients]);
+  }, [clients]);
 
   // === Pipeline Funnel data ===
   const funnelData = useMemo(() => {
     const stageCounts: Record<string, number> = {};
-    for (const c of filteredClients) {
+    for (const c of clients) {
       const stage = c.sales_stage ?? "new";
       stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
     }
@@ -161,7 +133,7 @@ export default function AnalyticsPage() {
       { name: "Acquisiti", value: acquisiti },
       { name: "Persi", value: persi },
     ];
-  }, [filteredClients]);
+  }, [clients]);
 
   // === Trend Lead (30-day intervals from contract start) ===
   const trendData = useMemo(() => {
@@ -172,7 +144,6 @@ export default function AnalyticsPage() {
     const startMs = start.getTime();
     const MS_30_DAYS = 30 * 24 * 60 * 60 * 1000;
 
-    // Build intervals from contract start to today
     const intervals: { from: Date; to: Date; label: string; count: number }[] = [];
     let periodStart = startMs;
     let idx = 0;
@@ -192,7 +163,6 @@ export default function AnalyticsPage() {
       idx++;
     }
 
-    // Count clients per interval
     for (const c of clients) {
       const createdMs = new Date(c.created_at).getTime();
       for (const interval of intervals) {
@@ -208,7 +178,7 @@ export default function AnalyticsPage() {
 
   // === Revenue data ===
   const revenueData = useMemo(() => {
-    const withRevenue = filteredClients.filter((c) => c.revenue != null && c.revenue > 0);
+    const withRevenue = clients.filter((c) => c.revenue != null && c.revenue > 0);
     if (withRevenue.length === 0) return null;
 
     const totalRevenue = withRevenue.reduce((sum, c) => sum + (c.revenue ?? 0), 0);
@@ -219,9 +189,9 @@ export default function AnalyticsPage() {
       avg: avgRevenue,
       count: withRevenue.length,
     };
-  }, [filteredClients]);
+  }, [clients]);
 
-  // === Monthly conversion table (calendar months from contract start, max 3) ===
+  // === Monthly conversion table ===
   const CLIENT_STAGES: SalesStage[] = ["appointment_completed", "converted"];
 
   const monthlyTable = useMemo(() => {
@@ -237,11 +207,9 @@ export default function AnalyticsPage() {
       revenue: number;
     }[] = [];
 
-    // From the month of contract start, up to max 3 months already started
     const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
     for (let i = 0; i < 3; i++) {
       const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
-      // Only include months that have already started
       if (d > now) break;
 
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -261,8 +229,7 @@ export default function AnalyticsPage() {
     return rows;
   }, [clients, contractStartDate]);
 
-  // === Loading state ===
-  if (loading || orgLoading) {
+  if (loading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -270,23 +237,16 @@ export default function AnalyticsPage() {
     );
   }
 
-  // === Empty state ===
   if (clients.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Analisi Lead</h1>
-          <p className="text-muted-foreground">Analisi conversioni e performance dei lead.</p>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <Users className="h-8 w-8 text-primary" />
         </div>
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Users className="h-8 w-8 text-primary" />
-          </div>
-          <h3 className="mt-4 text-lg font-semibold text-foreground">Nessun dato disponibile</h3>
-          <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
-            Aggiungi dei lead per visualizzare le analisi di conversione e performance.
-          </p>
-        </div>
+        <h3 className="mt-4 text-lg font-semibold text-foreground">Nessun dato disponibile</h3>
+        <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+          Aggiungi dei lead per visualizzare le analisi di conversione e performance.
+        </p>
       </div>
     );
   }
@@ -295,129 +255,78 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Analisi Lead</h1>
-          <p className="text-muted-foreground">Analisi conversioni e performance dei lead.</p>
-        </div>
-        <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
-      </div>
-
-      {/* Empty state for date filter */}
-      {filteredClients.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Users className="h-8 w-8 text-primary" />
-          </div>
-          <h3 className="mt-4 text-lg font-semibold text-foreground">Nessun lead nel periodo selezionato</h3>
-          <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
-            Prova a selezionare un periodo diverso per visualizzare i dati.
-          </p>
-        </div>
-      )}
-
-      {filteredClients.length > 0 && (<>
-      {/* ====== SEZIONE 1 - KPI Cards ====== */}
+      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {/* Lead Totali */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lead Totali
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Lead Totali</CardTitle>
             <div className="rounded-lg bg-gray-50 dark:bg-gray-950/50 p-2">
               <Users className="h-5 w-5 text-[#6B7280]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {filteredClients.length}
-            </div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{clients.length}</div>
           </CardContent>
         </Card>
 
-        {/* Tasso Risposta */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasso Risposta
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasso Risposta</CardTitle>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
               <MessageSquare className="h-5 w-5 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {kpis.responseRate.toFixed(1)}%
-            </div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{kpis.responseRate.toFixed(1)}%</div>
             <p className="mt-1 text-xs text-muted-foreground">Lead che hanno risposto</p>
           </CardContent>
         </Card>
 
-        {/* Tasso Appuntamenti */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasso Appuntamenti
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasso Appuntamenti</CardTitle>
             <div className="rounded-lg bg-orange-50 dark:bg-orange-950/50 p-2">
               <CalendarCheck className="h-5 w-5 text-[#F89627]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {kpis.appointmentRate.toFixed(1)}%
-            </div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{kpis.appointmentRate.toFixed(1)}%</div>
             <p className="mt-1 text-xs text-muted-foreground">Risposte convertite in appuntamento</p>
           </CardContent>
         </Card>
 
-        {/* Tasso Conversione */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasso Conversione
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasso Conversione</CardTitle>
             <div className="rounded-lg bg-green-50 dark:bg-green-950/50 p-2">
               <TrendingUp className="h-5 w-5 text-[#10B981]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {kpis.conversionRate.toFixed(1)}%
-            </div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{kpis.conversionRate.toFixed(1)}%</div>
             <p className="mt-1 text-xs text-muted-foreground">Lead convertiti in clienti</p>
           </CardContent>
         </Card>
 
-        {/* Tasso Fidelizzazione */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasso Fidelizzazione
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasso Fidelizzazione</CardTitle>
             <div className="rounded-lg bg-purple-50 dark:bg-purple-950/50 p-2">
               <UserCheck className="h-5 w-5 text-[#8B5CF6]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {kpis.retentionRate.toFixed(1)}%
-            </div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{kpis.retentionRate.toFixed(1)}%</div>
             <p className="mt-1 text-xs text-muted-foreground">Clienti che hanno acquistato percorsi</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* ====== SEZIONE 2+3 - Grafici affiancati ====== */}
+      {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Pipeline Funnel */}
         <Card className="bg-card shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-foreground">
-              Stato dei Lead
-            </CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Stato dei Lead</CardTitle>
             <p className="text-sm text-muted-foreground">Distribuzione lead per fase</p>
           </CardHeader>
           <CardContent>
@@ -479,12 +388,9 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Trend Lead */}
         <Card className="bg-card shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-foreground">
-              Trend Lead
-            </CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Trend Lead</CardTitle>
             <p className="text-sm text-muted-foreground">
               {contractStartDate
                 ? `Periodi di 30 giorni dal ${new Date(contractStartDate).toLocaleDateString("it-IT")}`
@@ -531,14 +437,12 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* ====== SEZIONE 4 - Dati Economici (condizionale) ====== */}
+      {/* Revenue */}
       {revenueData && (
         <div className="grid gap-4 sm:grid-cols-3">
           <Card className="bg-card shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Incasso Totale
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Incasso Totale</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-[32px] font-bold leading-tight text-foreground">
@@ -549,9 +453,7 @@ export default function AnalyticsPage() {
 
           <Card className="bg-card shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Incasso Medio
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Incasso Medio</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-[32px] font-bold leading-tight text-foreground">
@@ -562,9 +464,7 @@ export default function AnalyticsPage() {
 
           <Card className="bg-card shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Clienti con Revenue
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Clienti con Revenue</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-[32px] font-bold leading-tight text-foreground">
@@ -574,17 +474,12 @@ export default function AnalyticsPage() {
           </Card>
         </div>
       )}
-      </>)}
 
-      {/* ====== SEZIONE 5 - Tabella Conversioni per Mese ====== */}
+      {/* Monthly Table */}
       <Card className="bg-card shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base font-semibold text-foreground">
-            Conversioni per Mese
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Rendimento mensile dei lead
-          </p>
+          <CardTitle className="text-base font-semibold text-foreground">Conversioni per Mese</CardTitle>
+          <p className="text-sm text-muted-foreground">Rendimento mensile dei lead</p>
         </CardHeader>
         <CardContent>
           <Table>

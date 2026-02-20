@@ -119,6 +119,21 @@ export const ORGANIZATION_STATUS_CONFIG: Record<
 // Appointment config
 // ============================================
 
+// Time slots: 09:00 to 20:00 every 30 minutes
+export const APPOINTMENT_TIME_SLOTS: string[] = Array.from({ length: 23 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 9;
+  const min = i % 2 === 0 ? "00" : "30";
+  return `${String(hour).padStart(2, "0")}:${min}`;
+});
+
+export const APPOINTMENT_DURATION_OPTIONS = [
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "1h" },
+  { value: 90, label: "1h 30" },
+  { value: 120, label: "2h" },
+] as const;
+
 export const APPOINTMENT_STATUS_CONFIG: Record<
   AppointmentStatus,
   { label: string; color: string }
@@ -157,7 +172,11 @@ export const NAV_ITEMS = [
 ] as const;
 
 export const ADMIN_NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard Aggregata", icon: "LayoutDashboard" as const },
+  { href: "/admin/dashboard-aggregata", label: "Dashboard Aggregata", icon: "LayoutDashboard" as const },
   { href: "/admin/studi", label: "Gestione Studi", icon: "Building2" as const },
   { href: "/admin/approvazioni", label: "Approvazioni", icon: "ClipboardCheck" as const },
+] as const;
+
+export const STAFF_NAV_ITEMS = [
+  { href: "/staff/studi", label: "Gestione Studi", icon: "Building2" as const },
 ] as const;

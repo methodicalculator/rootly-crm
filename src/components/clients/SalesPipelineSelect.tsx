@@ -12,6 +12,7 @@ import { Loader2, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
+import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
 import type { SalesStage, LostReason } from "@/types";
 
 const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
@@ -27,6 +28,8 @@ interface SalesPipelineSelectProps {
   currentStage: SalesStage;
   currentRevenue?: number | null;
   onStageChange: (newStage: SalesStage) => void;
+  organizationId: string;
+  clientName: string;
 }
 
 const STAGE_ORDER: SalesStage[] = [
@@ -50,9 +53,12 @@ export function SalesPipelineSelect({
   currentStage,
   currentRevenue,
   onStageChange,
+  organizationId,
+  clientName,
 }: SalesPipelineSelectProps) {
   const [updating, setUpdating] = useState(false);
   const [showLostReason, setShowLostReason] = useState(false);
+  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [revenueValue, setRevenueValue] = useState(
     currentRevenue != null ? String(currentRevenue) : ""
   );
@@ -65,7 +71,8 @@ export function SalesPipelineSelect({
   }, [currentRevenue]);
   async function updateStage(
     newStage: SalesStage,
-    lostReason?: LostReason
+    lostReason?: LostReason,
+    appointmentDate?: string
   ) {
     setUpdating(true);
     try {
@@ -82,7 +89,7 @@ export function SalesPipelineSelect({
         updates.contacted_at = now;
       }
       if (newStage === "appointment_scheduled") {
-        updates.appointment_date = now;
+        updates.appointment_date = appointmentDate ?? now;
       }
       if (newStage === "appointment_completed") {
         updates.appointment_completed_at = now;
@@ -121,11 +128,24 @@ export function SalesPipelineSelect({
 
     if (stage === "lost") {
       setShowLostReason(true);
+      setShowAppointmentDialog(false);
+      return;
+    }
+
+    if (stage === "appointment_scheduled") {
+      setShowAppointmentDialog(true);
+      setShowLostReason(false);
       return;
     }
 
     setShowLostReason(false);
+    setShowAppointmentDialog(false);
     updateStage(stage);
+  }
+
+  function handleAppointmentSaved(appointmentDateISO: string) {
+    setShowAppointmentDialog(false);
+    updateStage("appointment_scheduled", undefined, appointmentDateISO);
   }
 
   function handleLostReasonSelect(value: string) {
@@ -232,6 +252,14 @@ export function SalesPipelineSelect({
         </div>
       )}
 
+      <AppointmentFormDialog
+        open={showAppointmentDialog}
+        onOpenChange={setShowAppointmentDialog}
+        organizationId={organizationId}
+        clientId={clientId}
+        clientName={clientName}
+        onSuccess={handleAppointmentSaved}
+      />
     </div>
   );
 }

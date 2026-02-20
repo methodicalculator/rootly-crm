@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Megaphone,
-  Plus,
   Loader2,
   ChevronDown,
   ChevronUp,
@@ -22,17 +21,12 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
-import { CampaignFormDialog } from "@/components/campaigns/campaign-form-dialog";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { toRomeDateStr } from "@/lib/date-utils";
-import { subDays } from "date-fns";
 import type { Campaign, CampaignMetrics } from "@/types";
 
-// ── Tabs ──────────────────────────────────────────────────────────
 const tabs = [
   { key: "tutte", label: "Tutte" },
   { key: "attiva", label: "Attive" },
@@ -40,7 +34,6 @@ const tabs = [
   { key: "in_pausa", label: "In Pausa" },
 ] as const;
 
-// ── Types ─────────────────────────────────────────────────────────
 interface AggregateMetrics {
   totalImpressions: number;
   totalClicks: number;
@@ -60,7 +53,6 @@ type SortColumn =
   | "ctr"
   | "cpm";
 
-// ── Helpers ───────────────────────────────────────────────────────
 function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -74,37 +66,21 @@ function fmtEur(n: number): string {
   })}`;
 }
 
-// ── Page Component ────────────────────────────────────────────────
-export default function CampaignsPage() {
-  const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
-
+export function StudioCampaignsTab({ organizationId }: { organizationId: string }) {
   const [activeTab, setActiveTab] = useState<string>("tutte");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [metricsMap, setMetricsMap] = useState<Map<string, CampaignMetrics[]>>(
-    new Map()
-  );
-  const [aggregateMap, setAggregateMap] = useState<
-    Map<string, AggregateMetrics>
-  >(new Map());
+  const [metricsMap, setMetricsMap] = useState<Map<string, CampaignMetrics[]>>(new Map());
+  const [aggregateMap, setAggregateMap] = useState<Map<string, AggregateMetrics>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortCol, setSortCol] = useState<SortColumn>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 29), to: new Date() });
 
-  // ── Data fetching ─────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
 
-    // 1. Campaigns
-    const { data: campaignsData } = await getCampaigns(
-      effectiveOrgId,
-      isAdmin,
-      undefined,
-      staffOrgIds
-    );
+    const { data: campaignsData } = await getCampaigns(organizationId, false);
     const allCampaigns = (campaignsData ?? []) as Campaign[];
     setCampaigns(allCampaigns);
 
@@ -115,20 +91,20 @@ export default function CampaignsPage() {
       return;
     }
 
-    // 2. Metrics for selected date range
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const campaignIds = allCampaigns.map((c) => c.id);
 
     const { data: metricsData } = await supabase
       .from("campaign_metrics")
       .select("*")
       .in("campaign_id", campaignIds)
-      .gte("date", toRomeDateStr(dateRange.from))
-      .lte("date", toRomeDateStr(dateRange.to))
+      .gte("date", toRomeDateStr(thirtyDaysAgo))
       .order("date", { ascending: false });
 
     const allMetrics = (metricsData ?? []) as CampaignMetrics[];
 
-    // Group by campaign_id
     const grouped = new Map<string, CampaignMetrics[]>();
     for (const m of allMetrics) {
       const list = grouped.get(m.campaign_id) ?? [];
@@ -137,13 +113,9 @@ export default function CampaignsPage() {
     }
     setMetricsMap(grouped);
 
-    // Compute aggregates
     const aggs = new Map<string, AggregateMetrics>();
     for (const [cid, list] of grouped) {
-      const totalImpressions = list.reduce(
-        (s, m) => s + (m.impressions ?? 0),
-        0
-      );
+      const totalImpressions = list.reduce((s, m) => s + (m.impressions ?? 0), 0);
       const totalClicks = list.reduce((s, m) => s + (m.clicks ?? 0), 0);
       const totalSpend = list.reduce((s, m) => s + (m.spend ?? 0), 0);
       const totalLeads = list.reduce((s, m) => s + (m.leads ?? 0), 0);
@@ -153,26 +125,22 @@ export default function CampaignsPage() {
         totalSpend,
         totalLeads,
         avgCpa: totalLeads > 0 ? totalSpend / totalLeads : 0,
-        avgCtr:
-          totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        avgCtr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
       });
     }
     setAggregateMap(aggs);
     setLoading(false);
-  }, [effectiveOrgId, isAdmin, staffOrgIds, dateRange]);
+  }, [organizationId]);
 
   useEffect(() => {
-    if (orgLoading) return;
     fetchData();
-  }, [orgLoading, fetchData]);
+  }, [fetchData]);
 
-  // ── Filtered campaigns by tab ─────────────────────────────────
   const filteredCampaigns = useMemo(() => {
     if (activeTab === "tutte") return campaigns;
     return campaigns.filter((c) => c.status === activeTab);
   }, [campaigns, activeTab]);
 
-  // ── Chart data for expanded campaign ──────────────────────────
   const chartData = useMemo(() => {
     if (!expandedId) return [];
     const daily = metricsMap.get(expandedId) ?? [];
@@ -189,7 +157,6 @@ export default function CampaignsPage() {
       }));
   }, [expandedId, metricsMap]);
 
-  // ── Sorted daily metrics for expanded table ───────────────────
   const sortedDailyMetrics = useMemo(() => {
     if (!expandedId) return [];
     const daily = metricsMap.get(expandedId) ?? [];
@@ -237,7 +204,6 @@ export default function CampaignsPage() {
     });
   }, [expandedId, metricsMap, sortCol, sortDir]);
 
-  // ── Interactions ──────────────────────────────────────────────
   function toggleSort(col: SortColumn) {
     if (sortCol === col) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -253,31 +219,8 @@ export default function CampaignsPage() {
     setSortDir("desc");
   }
 
-  // ── Render ────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Campagne Marketing
-          </h1>
-          <p className="text-muted-foreground">
-            Monitora e gestisci le campagne Meta Ads dei tuoi clienti.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
-          <Button
-            className="bg-primary hover:bg-primary/80"
-            onClick={() => setDialogOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova Campagna
-          </Button>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="flex items-center gap-4 border-b border-border">
         {tabs.map((tab) => (
@@ -299,12 +242,9 @@ export default function CampaignsPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Caricamento campagne...
-          </p>
+          <p className="mt-4 text-sm text-muted-foreground">Caricamento campagne...</p>
         </div>
       ) : filteredCampaigns.length === 0 ? (
-        /* ── Empty State ──────────────────────────────────────── */
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Megaphone className="h-8 w-8 text-primary" />
@@ -316,21 +256,11 @@ export default function CampaignsPage() {
           </h3>
           <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
             {activeTab === "tutte"
-              ? "Le tue campagne Meta Ads verranno sincronizzate automaticamente da Make. Oppure crea manualmente una campagna."
+              ? "Le campagne Meta Ads verranno sincronizzate automaticamente."
               : "Non ci sono campagne che corrispondono al filtro selezionato."}
           </p>
-          {activeTab === "tutte" && (
-            <Button
-              className="mt-6 bg-primary hover:bg-primary/80"
-              onClick={() => setDialogOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Crea la prima campagna
-            </Button>
-          )}
         </div>
       ) : (
-        /* ── Campaign Cards ───────────────────────────────────── */
         <div className="space-y-4">
           {filteredCampaigns.map((campaign) => {
             const statusCfg = CAMPAIGN_STATUS_CONFIG[campaign.status];
@@ -339,12 +269,8 @@ export default function CampaignsPage() {
             const hasMetrics = !!agg;
 
             return (
-              <Card
-                key={campaign.id}
-                className="overflow-hidden bg-card shadow-sm"
-              >
+              <Card key={campaign.id} className="overflow-hidden bg-card shadow-sm">
                 <CardContent className="p-0">
-                  {/* ── Campaign summary ────────────────────── */}
                   <div className="p-4 md:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -363,68 +289,44 @@ export default function CampaignsPage() {
                           {campaign.data_inizio && (
                             <span>
                               Inizio:{" "}
-                              {new Date(
-                                campaign.data_inizio
-                              ).toLocaleDateString("it-IT")}
+                              {new Date(campaign.data_inizio).toLocaleDateString("it-IT")}
                             </span>
                           )}
                           {campaign.data_fine && (
                             <span>
                               Fine:{" "}
-                              {new Date(
-                                campaign.data_fine
-                              ).toLocaleDateString("it-IT")}
+                              {new Date(campaign.data_fine).toLocaleDateString("it-IT")}
                             </span>
                           )}
                           {campaign.budget_mensile != null && (
                             <span>
-                              Budget:{" "}
-                              {fmtEur(Number(campaign.budget_mensile))}/mese
+                              Budget: {fmtEur(Number(campaign.budget_mensile))}/mese
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* ── Aggregate KPIs (last 30 days) ──── */}
                     {hasMetrics ? (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                        <MetricBox
-                          label="Lead"
-                          value={fmtNum(agg.totalLeads)}
-                        />
-                        <MetricBox
-                          label="Spesa"
-                          value={fmtEur(agg.totalSpend)}
-                        />
+                        <MetricBox label="Lead" value={fmtNum(agg.totalLeads)} />
+                        <MetricBox label="Spesa" value={fmtEur(agg.totalSpend)} />
                         <MetricBox
                           label="CPA"
-                          value={
-                            agg.avgCpa > 0
-                              ? `€${agg.avgCpa.toFixed(2)}`
-                              : "—"
-                          }
+                          value={agg.avgCpa > 0 ? `€${agg.avgCpa.toFixed(2)}` : "—"}
                         />
                         <MetricBox
                           label="CTR"
-                          value={
-                            agg.avgCtr > 0
-                              ? `${agg.avgCtr.toFixed(2)}%`
-                              : "—"
-                          }
+                          value={agg.avgCtr > 0 ? `${agg.avgCtr.toFixed(2)}%` : "—"}
                         />
-                        <MetricBox
-                          label="Impressions"
-                          value={fmtNum(agg.totalImpressions)}
-                        />
+                        <MetricBox label="Impressions" value={fmtNum(agg.totalImpressions)} />
                       </div>
                     ) : (
                       <p className="mt-3 text-sm italic text-muted-foreground">
-                        Nessuna metrica nel periodo selezionato
+                        Nessuna metrica negli ultimi 30 giorni
                       </p>
                     )}
 
-                    {/* ── Expand toggle ─────────────────── */}
                     {hasMetrics && (
                       <Button
                         variant="ghost"
@@ -447,22 +349,17 @@ export default function CampaignsPage() {
                     )}
                   </div>
 
-                  {/* ── Expanded detail ─────────────────────── */}
                   {isExpanded && (
                     <div className="space-y-5 border-t border-border bg-muted p-4 md:p-5">
-                      {/* Chart */}
                       {chartData.length > 0 && (
                         <div>
                           <h4 className="mb-3 text-sm font-semibold text-foreground">
-                            Andamento periodo selezionato
+                            Andamento ultimi 30 giorni
                           </h4>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                               <LineChart data={chartData}>
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke="var(--border)"
-                                />
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                                 <XAxis
                                   dataKey="giorno"
                                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -478,8 +375,7 @@ export default function CampaignsPage() {
                                   contentStyle={{
                                     borderRadius: "8px",
                                     border: "1px solid var(--border)",
-                                    boxShadow:
-                                      "0 1px 3px rgba(0,0,0,0.1)",
+                                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                                     backgroundColor: "var(--card)",
                                     color: "var(--foreground)",
                                   }}
@@ -502,7 +398,6 @@ export default function CampaignsPage() {
                         </div>
                       )}
 
-                      {/* Daily metrics table */}
                       <div>
                         <h4 className="mb-3 text-sm font-semibold text-foreground">
                           Metriche Giornaliere
@@ -511,62 +406,14 @@ export default function CampaignsPage() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-border bg-muted">
-                                <SortableHeader
-                                  label="Data"
-                                  column="date"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Impressions"
-                                  column="impressions"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Click"
-                                  column="clicks"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Spend"
-                                  column="spend"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Lead"
-                                  column="leads"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="CPA"
-                                  column="cpa"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="CTR"
-                                  column="ctr"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="CPM"
-                                  column="cpm"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
+                                <SortableHeader label="Data" column="date" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Impressions" column="impressions" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Click" column="clicks" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Spend" column="spend" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Lead" column="leads" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="CPA" column="cpa" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="CTR" column="ctr" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="CPM" column="cpm" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                               </tr>
                             </thead>
                             <tbody>
@@ -576,9 +423,7 @@ export default function CampaignsPage() {
                                   className="border-b border-border transition-colors last:border-b-0 hover:bg-muted"
                                 >
                                   <td className="whitespace-nowrap px-3 py-2 text-foreground">
-                                    {new Date(m.date).toLocaleDateString(
-                                      "it-IT"
-                                    )}
+                                    {new Date(m.date).toLocaleDateString("it-IT")}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
                                     {m.impressions.toLocaleString("it-IT")}
@@ -593,19 +438,13 @@ export default function CampaignsPage() {
                                     {m.leads}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.cpa != null
-                                      ? `€${m.cpa.toFixed(2)}`
-                                      : "—"}
+                                    {m.cpa != null ? `€${m.cpa.toFixed(2)}` : "—"}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.ctr != null
-                                      ? `${m.ctr.toFixed(2)}%`
-                                      : "—"}
+                                    {m.ctr != null ? `${m.ctr.toFixed(2)}%` : "—"}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.cpm != null
-                                      ? `€${m.cpm.toFixed(2)}`
-                                      : "—"}
+                                    {m.cpm != null ? `€${m.cpm.toFixed(2)}` : "—"}
                                   </td>
                                 </tr>
                               ))}
@@ -621,21 +460,9 @@ export default function CampaignsPage() {
           })}
         </div>
       )}
-
-      {/* Campaign form dialog */}
-      {effectiveOrgId && (
-        <CampaignFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          organizationId={effectiveOrgId}
-          onSuccess={fetchData}
-        />
-      )}
     </div>
   );
 }
-
-// ── Sub-components ──────────────────────────────────────────────────
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (

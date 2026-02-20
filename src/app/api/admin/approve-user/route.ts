@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
     staffOrgIds?: string[];
   };
 
+  console.log("[APPROVE-USER] body received:", { userId, role, organizationId, staffOrgIds });
+
   if (!userId) {
     return NextResponse.json(
       { error: "userId è obbligatorio" },
@@ -60,15 +62,17 @@ export async function POST(request: NextRequest) {
 
   if (effectiveRole === "staff") {
     // Staff: set role=staff, organization_id=NULL
+    console.log("[APPROVE-USER] Updating profile to staff for userId:", userId);
     const { error: profileError } = await admin
       .from("user_profiles")
-      .update({ role: "staff", organization_id: null })
+      .update({ role: "staff", access_level: "staff", organization_id: null })
       .eq("id", userId);
 
     if (profileError) {
-      console.error("approve-user staff profile error:", profileError);
+      console.error("[APPROVE-USER] staff profile error:", profileError);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
+    console.log("[APPROVE-USER] Profile updated to staff OK");
 
     // Insert staff_organizations rows
     const rows = staffOrgIds!.map((orgId) => ({
@@ -76,14 +80,23 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
     }));
 
-    const { error: staffError } = await admin
+    console.log("[APPROVE-USER] Inserting staff_organizations rows:", JSON.stringify(rows));
+    const { data: insertData, error: staffError } = await admin
       .from("staff_organizations")
-      .insert(rows);
+      .upsert(rows, { onConflict: "user_id,organization_id", ignoreDuplicates: true })
+      .select();
 
     if (staffError) {
-      console.error("approve-user staff_organizations error:", staffError);
+      console.error("[APPROVE-USER] staff_organizations insert error:", staffError);
       return NextResponse.json({ error: staffError.message }, { status: 500 });
     }
+
+    console.log("[APPROVE-USER] staff_organizations insert OK, returned:", insertData);
+
+    return NextResponse.json({
+      ok: true,
+      staffOrgsInserted: insertData?.length ?? 0,
+    });
   } else {
     // Owner: set role=owner, organization_id=X
     const { error } = await admin
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest) {
       .eq("id", userId);
 
     if (error) {
-      console.error("approve-user error:", error);
+      console.error("[APPROVE-USER] owner profile error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }

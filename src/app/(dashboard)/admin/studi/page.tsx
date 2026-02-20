@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -40,6 +41,7 @@ import {
   ORGANIZATION_STATUS_CONFIG,
   ORGANIZATION_TYPE_CONFIG,
 } from "@/lib/constants";
+import { startOfMonthRomeISO } from "@/lib/date-utils";
 import { OrganizationFormDialog } from "@/components/admin/organization-form-dialog";
 import { toast } from "sonner";
 import type { Organization, OrganizationType, OrganizationStatus } from "@/types";
@@ -65,10 +67,12 @@ const STATUS_TABS = [
 ] as const;
 
 export default function GestioneStudiPage() {
+  const router = useRouter();
   const {
     canImpersonate,
     startImpersonate,
     accessLevel,
+    role,
     isAdmin,
     isSuperAdmin,
     userId,
@@ -94,10 +98,10 @@ export default function GestioneStudiPage() {
     if (!userId) return;
     setLoading(true);
 
-    // Derive accessLevel from admin flags when the DB column is null
+    // Derive accessLevel from admin flags / role when the DB column is null
     const effectiveAccessLevel =
       accessLevel ??
-      (isSuperAdmin ? "super_admin" : isAdmin ? "admin" : null);
+      (isSuperAdmin ? "super_admin" : isAdmin ? "admin" : role === "staff" ? "staff" : null);
 
     const { data } = await getOrganizations({
       accessLevel: effectiveAccessLevel,
@@ -115,15 +119,11 @@ export default function GestioneStudiPage() {
 
     // Fetch stats for each org in parallel
     const supabase = createClient();
-    const startOfMonth = new Date(
-      new Date().getFullYear(),
-      new Date().getMonth(),
-      1
-    ).toISOString();
+    const startOfMonth = startOfMonthRomeISO();
 
     const withStats = await Promise.all(
       allOrgs.map(async (org) => {
-        const [clientsRes, leadsRes, campaignsRes, staffRes] = await Promise.all([
+        const [clientsRes, leadsRes, campaignsRes, staffOrgRes] = await Promise.all([
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
@@ -140,18 +140,39 @@ export default function GestioneStudiPage() {
             .eq("status", "attiva"),
           supabase
             .from("staff_organizations")
-            .select("user_id, user_profiles(id, full_name, email)")
+            .select("user_id")
             .eq("organization_id", org.id),
         ]);
 
-        const assignedStaff: StaffMember[] = (staffRes.data ?? []).map((row) => {
-          const p = row.user_profiles as unknown as StaffMember | null;
-          return {
-            id: p?.id ?? row.user_id,
-            full_name: p?.full_name ?? null,
-            email: p?.email ?? null,
-          };
-        });
+        // Fetch profiles separately (avoids embedded-select / RLS issues)
+        const staffUserIds = (staffOrgRes.data ?? []).map(
+          (r: { user_id: string }) => r.user_id
+        );
+
+        console.log("[STUDI] staff_organizations for org", org.id, "→", staffUserIds, staffOrgRes.error);
+
+        let assignedStaff: StaffMember[] = [];
+        if (staffUserIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from("user_profiles")
+            .select("id, full_name, email")
+            .in("id", staffUserIds);
+
+          console.log("[STUDI] user_profiles for staff:", profilesData, profilesError);
+
+          const profileMap = new Map(
+            (profilesData ?? []).map((p: { id: string; full_name: string | null; email: string | null }) => [p.id, p])
+          );
+
+          assignedStaff = staffUserIds.map((uid) => {
+            const p = profileMap.get(uid);
+            return {
+              id: uid,
+              full_name: p?.full_name ?? null,
+              email: p?.email ?? null,
+            };
+          });
+        }
 
         return {
           ...org,
@@ -165,7 +186,7 @@ export default function GestioneStudiPage() {
 
     setOrgs(withStats);
     setLoading(false);
-  }, [accessLevel, isAdmin, isSuperAdmin, userId, organizationId]);
+  }, [accessLevel, role, isAdmin, isSuperAdmin, userId, organizationId]);
 
   useEffect(() => {
     if (orgLoading) return;
@@ -204,7 +225,7 @@ export default function GestioneStudiPage() {
         user_id: uid,
         organization_id: staffDialogOrgId,
       }));
-      const { error } = await supabase.from("staff_organizations").insert(rows);
+      const { error } = await supabase.from("staff_organizations").upsert(rows, { onConflict: "user_id,organization_id", ignoreDuplicates: true });
       if (error) {
         toast.error("Errore nell'assegnazione: " + error.message);
         return;
@@ -242,7 +263,6 @@ export default function GestioneStudiPage() {
   const totalOrgs = orgs.length;
   const activeOrgs = orgs.filter((o) => o.status === "active").length;
   const pendingOrgs = orgs.filter((o) => o.status === "pending").length;
-  const totalClients = orgs.reduce((s, o) => s + o.clientCount, 0);
 
   if (loading || orgLoading) {
     return (
@@ -277,7 +297,7 @@ export default function GestioneStudiPage() {
       </div>
 
       {/* Summary KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <MiniKpi
           icon={<Building2 className="h-5 w-5 text-primary" />}
           label="Studi Totali"
@@ -295,12 +315,6 @@ export default function GestioneStudiPage() {
           label="In Attesa"
           value={pendingOrgs}
           bg="bg-amber-50 dark:bg-amber-950/50"
-        />
-        <MiniKpi
-          icon={<Users className="h-5 w-5 text-[#8B5CF6]" />}
-          label="Clienti Totali"
-          value={totalClients}
-          bg="bg-purple-50 dark:bg-purple-950/50"
         />
       </div>
 
@@ -417,6 +431,20 @@ export default function GestioneStudiPage() {
                           <Pencil className="mr-1.5 h-4 w-4" />
                           Modifica
                         </Button>
+                        {org.status === "active" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              router.push(
+                                `/dashboard?viewOnly=true&orgId=${org.id}`
+                              )
+                            }
+                          >
+                            <Eye className="mr-1.5 h-4 w-4" />
+                            Visualizza
+                          </Button>
+                        )}
                         {canImpersonate && org.status === "active" && (
                           <Button
                             variant="outline"

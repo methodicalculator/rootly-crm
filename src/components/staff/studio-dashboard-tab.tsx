@@ -1,28 +1,22 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Users,
   UserPlus,
   Wallet,
   Calendar,
   Loader2,
-  ArrowRight,
-  ArrowLeft,
   Mail,
   Phone,
   Briefcase,
   Clock,
-  Check,
 } from "lucide-react";
 import {
   LineChart,
@@ -33,11 +27,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import type { Client } from "@/types";
@@ -52,18 +44,7 @@ const MONTH_NAMES_FULL = [
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 
-function DashboardContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
-
-  const viewOnly = searchParams.get("viewOnly") === "true";
-  const viewOrgId = searchParams.get("orgId");
-  const isViewMode = viewOnly && !!viewOrgId;
-
-  // The org ID to use for queries: viewOrgId in view mode, otherwise effectiveOrgId
-  const queryOrgId = isViewMode ? viewOrgId : effectiveOrgId;
-
+export function StudioDashboardTab({ organizationId }: { organizationId: string }) {
   const [activeClients, setActiveClients] = useState(0);
   const [newLeads, setNewLeads] = useState(0);
   const [spendMonth, setSpendMonth] = useState(0);
@@ -73,44 +54,28 @@ function DashboardContent() {
   const [recentClients, setRecentClients] = useState<Client[]>([]);
   const [leadsToContact, setLeadsToContact] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [contactingId, setContactingId] = useState<string | null>(null);
-  const [viewOrgName, setViewOrgName] = useState<string | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orgFilter = (q: any) => q.eq("organization_id", organizationId);
 
   const fetchLeadsToContact = useCallback(async () => {
     const supabase = createClient();
-    let query = supabase
+    const { data } = await supabase
       .from("clients")
       .select("*")
+      .eq("organization_id", organizationId)
       .in("sales_stage", ["new", "contacted"])
       .order("created_at", { ascending: false })
       .limit(5);
 
-    if (queryOrgId) {
-      query = query.eq("organization_id", queryOrgId);
-    }
-
-    const { data } = await query;
     setLeadsToContact((data ?? []) as Client[]);
-  }, [queryOrgId]);
+  }, [organizationId]);
 
   useEffect(() => {
-    if (orgLoading) return;
-
     async function fetchAll() {
       setLoading(true);
       const supabase = createClient();
 
-      // Fetch org name for view mode banner
-      if (isViewMode && viewOrgId) {
-        const { data: orgData } = await supabase
-          .from("organizations")
-          .select("name")
-          .eq("id", viewOrgId)
-          .single();
-        setViewOrgName(orgData?.name ?? null);
-      }
-
-      // --- Date helpers (Europe/Rome timezone) ---
       const now = new Date();
       const romeToday = toRomeDateStr(now);
       const startOfMonth = startOfMonthRomeISO(now);
@@ -118,25 +83,15 @@ function DashboardContent() {
 
       setChartMonthName(MONTH_NAMES_FULL[romeMonthIdx]);
 
-      // Monday of current week
       const startOfWeek = new Date(now);
       const dow = startOfWeek.getDay();
       startOfWeek.setDate(startOfWeek.getDate() - (dow === 0 ? 6 : dow - 1));
       startOfWeek.setHours(0, 0, 0, 0);
 
-      // Sunday of current week
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
 
-      // Helper: add organization_id filter when needed
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orgFilter = (q: any) => {
-        if (queryOrgId) return q.eq("organization_id", queryOrgId);
-        return q;
-      };
-
-      // --- All queries in parallel ---
       const [
         clientsRes,
         leadsRes,
@@ -145,20 +100,15 @@ function DashboardContent() {
         recentClientsRes,
         orgCampaignsRes,
       ] = await Promise.all([
-        // 1) Lead Totali
         orgFilter(
-          supabase
-            .from("clients")
-            .select("id", { count: "exact", head: true })
+          supabase.from("clients").select("id", { count: "exact", head: true })
         ),
-        // 2) Nuovi Lead Questo Mese
         orgFilter(
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
             .gte("created_at", startOfMonth)
         ),
-        // 3) Appuntamenti Questa Settimana
         orgFilter(
           supabase
             .from("appointments")
@@ -166,7 +116,6 @@ function DashboardContent() {
             .gte("start_time", startOfWeek.toISOString())
             .lte("start_time", endOfWeek.toISOString())
         ),
-        // 4) Chart: clients created from start of current month
         orgFilter(
           supabase
             .from("clients")
@@ -174,7 +123,6 @@ function DashboardContent() {
             .gte("created_at", startOfMonth)
             .order("created_at", { ascending: true })
         ),
-        // 5) Clienti Recenti (ultimi 5)
         orgFilter(
           supabase
             .from("clients")
@@ -182,20 +130,13 @@ function DashboardContent() {
             .order("created_at", { ascending: false })
             .limit(5)
         ),
-        // 6) Campaign IDs for this org (needed for spend calc)
-        orgFilter(
-          supabase
-            .from("campaigns")
-            .select("id")
-        ),
+        orgFilter(supabase.from("campaigns").select("id")),
       ]);
 
-      // --- KPIs ---
       setActiveClients(clientsRes.count ?? 0);
       setNewLeads(leadsRes.count ?? 0);
       setWeekAppointments(appointmentsRes.count ?? 0);
 
-      // --- Spesa Mese: sum spend from campaign_metrics ---
       const campaignIds = (orgCampaignsRes.data ?? []).map(
         (c: { id: string }) => c.id
       );
@@ -213,9 +154,8 @@ function DashboardContent() {
       }
       setSpendMonth(totalSpend);
 
-      // --- Lead chart (current month, day 1 to today — Rome TZ) ---
       const todayDate = parseInt(romeToday.slice(8, 10));
-      const monthPrefix = romeToday.slice(0, 8); // "YYYY-MM-"
+      const monthPrefix = romeToday.slice(0, 8);
       const chartMap = new Map<string, number>();
       for (let day = 1; day <= todayDate; day++) {
         chartMap.set(`${monthPrefix}${String(day).padStart(2, "0")}`, 0);
@@ -235,7 +175,6 @@ function DashboardContent() {
       }
       setLeadChartData(points);
 
-      // --- Clienti Recenti ---
       setRecentClients((recentClientsRes.data ?? []) as Client[]);
 
       setLoading(false);
@@ -243,37 +182,9 @@ function DashboardContent() {
 
     fetchAll();
     fetchLeadsToContact();
-  }, [queryOrgId, isAdmin, orgLoading, fetchLeadsToContact, isViewMode, viewOrgId]);
+  }, [organizationId, fetchLeadsToContact]);
 
-  async function markAsContacted(clientId: string) {
-    setContactingId(clientId);
-    try {
-      const supabase = createClient();
-
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("clients")
-        .update({
-          sales_stage: "contacted",
-          contacted_at: now,
-          stage_changed_at: now,
-        })
-        .eq("id", clientId);
-
-      if (error) {
-        toast.error("Errore durante l'aggiornamento");
-        return;
-      }
-
-      toast.success("Lead segnato come contattato!");
-      await fetchLeadsToContact();
-    } finally {
-      setContactingId(null);
-    }
-  }
-
-  // --- Full-page loading spinner ---
-  if (loading || orgLoading) {
+  if (loading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -283,37 +194,8 @@ function DashboardContent() {
 
   return (
     <div className="space-y-6">
-      {/* View-only banner */}
-      {isViewMode && (
-        <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 dark:bg-blue-950/30 dark:border-blue-800">
-          <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-            Stai visualizzando: <span className="font-semibold">{viewOrgName ?? "Studio"}</span>
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/50"
-            onClick={() => router.push("/admin/studi")}
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Torna a Gestione Studi
-          </Button>
-        </div>
-      )}
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Dashboard
-        </h1>
-        <p className="text-muted-foreground">
-          Panoramica delle campagne e performance dei lead.
-        </p>
-      </div>
-
-      {/* ====== SEZIONE 1 – KPI Cards ====== */}
+      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Nuovi Lead Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -327,13 +209,10 @@ function DashboardContent() {
             <div className="text-[32px] font-bold leading-tight text-foreground">
               {newLeads}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Aggiunti questo mese
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Aggiunti questo mese</p>
           </CardContent>
         </Card>
 
-        {/* Lead Totali */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -347,13 +226,10 @@ function DashboardContent() {
             <div className="text-[32px] font-bold leading-tight text-foreground">
               {activeClients}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Totale lead in database
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Totale lead in database</p>
           </CardContent>
         </Card>
 
-        {/* Spesa Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -371,7 +247,6 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Appuntamenti Settimana */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -390,7 +265,7 @@ function DashboardContent() {
         </Card>
       </div>
 
-      {/* ====== SEZIONE 2 – Grafico Lead mese corrente ====== */}
+      {/* Lead Chart */}
       <Card className="bg-card shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold text-foreground">
@@ -447,34 +322,19 @@ function DashboardContent() {
         </CardContent>
       </Card>
 
-      {/* ====== SEZIONE 3 + 4 – Clienti Recenti + Lead da Contattare ====== */}
+      {/* Lead Recenti + Lead da Contattare */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Clienti Recenti */}
         <Card className="bg-card shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold text-foreground">
-                Lead Recenti
-              </CardTitle>
-              {!isViewMode && (
-                <Link
-                  href="/clients"
-                  className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80"
-                >
-                  Vedi tutti
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
+            <CardTitle className="text-base font-semibold text-foreground">
+              Lead Recenti
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {recentClients.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                 <Users className="h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-2 font-medium">
-                  Nessun cliente ancora.
-                </p>
-                <p className="text-sm">Aggiungi il primo!</p>
+                <p className="mt-2 font-medium">Nessun cliente ancora.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -506,9 +366,7 @@ function DashboardContent() {
                         {client.first_contact_date && (
                           <span>
                             Contatto:{" "}
-                            {new Date(
-                              client.first_contact_date
-                            ).toLocaleDateString("it-IT")}
+                            {new Date(client.first_contact_date).toLocaleDateString("it-IT")}
                           </span>
                         )}
                         {client.service_interest && (
@@ -523,23 +381,11 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Lead da Contattare */}
         <Card className="bg-card shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold text-foreground">
-                Lead da Contattare ({leadsToContact.length})
-              </CardTitle>
-              {!isViewMode && (
-                <Link
-                  href="/clients?filter=da_contattare"
-                  className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80"
-                >
-                  Vedi tutti
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
+            <CardTitle className="text-base font-semibold text-foreground">
+              Lead da Contattare ({leadsToContact.length})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {leadsToContact.length === 0 ? (
@@ -563,22 +409,16 @@ function DashboardContent() {
                           {lead.nome} {lead.cognome}
                         </p>
                         {lead.email && (
-                          <a
-                            href={`mailto:${lead.email}`}
-                            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-                          >
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                             <Mail className="h-3.5 w-3.5 shrink-0" />
                             <span className="truncate">{lead.email}</span>
-                          </a>
+                          </div>
                         )}
                         {lead.telefono && (
-                          <a
-                            href={`tel:${lead.telefono}`}
-                            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-                          >
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                             <Phone className="h-3.5 w-3.5 shrink-0" />
                             <span>{lead.telefono}</span>
-                          </a>
+                          </div>
                         )}
                         {lead.service_interest && (
                           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -598,24 +438,6 @@ function DashboardContent() {
                         </div>
                       </div>
                     </div>
-                    {!isViewMode && (
-                      <div className="mt-3 border-t border-border pt-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full hover:bg-green-50 hover:text-green-700 hover:border-green-200 dark:hover:bg-green-950/30 dark:hover:text-green-400 dark:hover:border-green-800"
-                          disabled={contactingId === lead.id}
-                          onClick={() => markAsContacted(lead.id)}
-                        >
-                          {contactingId === lead.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="mr-2 h-4 w-4" />
-                          )}
-                          Segna come Contattato
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -624,19 +446,5 @@ function DashboardContent() {
         </Card>
       </div>
     </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-[50vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      }
-    >
-      <DashboardContent />
-    </Suspense>
   );
 }

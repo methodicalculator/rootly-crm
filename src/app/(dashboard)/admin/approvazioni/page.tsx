@@ -89,6 +89,8 @@ export default function ApprovazioniPage() {
     userId: string,
     opts: { role: "owner" | "staff"; organizationId?: string; staffOrgIds?: string[] }
   ) {
+    console.log("[APPROVAZIONI] approveUser called:", { userId, ...opts });
+
     const res = await fetch("/api/admin/approve-user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -100,15 +102,17 @@ export default function ApprovazioniPage() {
       }),
     });
 
+    const resBody = await res.json().catch(() => ({}));
+    console.log("[APPROVAZIONI] API response:", res.status, resBody);
+
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error || "Errore durante l'approvazione");
+      toast.error(resBody.error || "Errore durante l'approvazione");
       return;
     }
 
     toast.success(
       opts.role === "staff"
-        ? "Utente approvato come staff!"
+        ? `Utente approvato come staff! (${resBody.staffOrgsInserted ?? 0} studi assegnati)`
         : "Utente approvato e assegnato allo studio!"
     );
     loadPendingUsers();

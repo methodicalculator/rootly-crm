@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,11 @@ import {
 } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,40 +28,47 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/reset-password",
     });
 
     if (error) {
-      setError("Email o password non validi.");
+      setError(error.message);
       setLoading(false);
       return;
     }
 
-    // Redirect based on role
-    let dest = "/dashboard";
-    if (data.user) {
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-      if (profile?.role && profile.role !== "owner") {
-        dest = "/admin/dashboard-aggregata";
-      }
-    }
+    setSuccess(true);
+    setLoading(false);
+  }
 
-    router.push(dest);
-    router.refresh();
+  if (success) {
+    return (
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle>Controlla la tua email</CardTitle>
+          <CardDescription>
+            Ti abbiamo inviato un link per reimpostare la password
+            all&apos;indirizzo <strong>{email}</strong>.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Link href="/login" className="w-full">
+            <Button variant="outline" className="w-full">
+              Torna al login
+            </Button>
+          </Link>
+        </CardFooter>
+      </Card>
+    );
   }
 
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Accedi</CardTitle>
+        <CardTitle>Recupera password</CardTitle>
         <CardDescription>
-          Inserisci le tue credenziali per accedere
+          Ti invieremo un link per reimpostare la password
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -85,35 +90,15 @@ export default function LoginPage() {
               autoComplete="email"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-          <div className="text-right">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-primary hover:underline"
-            >
-              Hai dimenticato la password?
-            </Link>
-          </div>
         </CardContent>
         <CardFooter className="mt-6 flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Accedi
+            Invia link di recupero
           </Button>
           <p className="text-sm text-muted-foreground">
-            Non hai un account?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Registrati
+            <Link href="/login" className="text-primary hover:underline">
+              Torna al login
             </Link>
           </p>
         </CardFooter>

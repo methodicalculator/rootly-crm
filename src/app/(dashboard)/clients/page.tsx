@@ -203,6 +203,8 @@ export default function ClientsPage() {
                         currentStage={client.sales_stage ?? "new"}
                         currentRevenue={client.revenue}
                         onStageChange={(stage) => handleStageChange(client.id, stage)}
+                        organizationId={client.organization_id!}
+                        clientName={`${client.nome} ${client.cognome}`}
                       />
                     </td>
                     <td className="hidden px-4 py-3 lg:table-cell">

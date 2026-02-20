@@ -77,6 +77,31 @@ export async function getAppointments(
   );
 }
 
+export async function getAppointmentsWithClients(
+  effectiveOrgId: string | null,
+  isAdmin: boolean,
+  managerOrgIds?: string[],
+  staffOrgIds?: string[]
+) {
+  const supabase = createClient();
+  let query = supabase
+    .from("appointments")
+    .select("*, clients(nome, cognome)")
+    .order("start_time", { ascending: true });
+
+  if (effectiveOrgId) {
+    query = query.eq("organization_id", effectiveOrgId);
+  } else if (!isAdmin && staffOrgIds && staffOrgIds.length > 0) {
+    query = query.in("organization_id", staffOrgIds);
+  } else if (!isAdmin && managerOrgIds && managerOrgIds.length > 0) {
+    query = query.in("organization_id", managerOrgIds);
+  } else if (!isAdmin) {
+    query = query.eq("organization_id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  return query;
+}
+
 export async function getCommunications(
   effectiveOrgId: string | null,
   isAdmin: boolean,
@@ -130,6 +155,24 @@ export async function createClientRecord(
   });
 }
 
+export async function createAppointmentRecord(
+  data: {
+    client_id: string;
+    title: string;
+    start_time: string;
+    end_time: string;
+    notes?: string | null;
+  },
+  organizationId: string
+) {
+  const supabase = createClient();
+  return supabase.from("appointments").insert({
+    ...data,
+    organization_id: organizationId,
+    status: "scheduled",
+  });
+}
+
 export async function createCampaignRecord(
   data: {
     nome_campagna: string;
@@ -165,9 +208,23 @@ export async function getManagerOrgIds(userId: string): Promise<string[]> {
 }
 
 /**
+ * Carica gli org_id assegnati a uno staff dalla tabella staff_organizations.
+ * Ritorna array vuoto se non ha assegnamenti.
+ */
+export async function getStaffOrgIds(userId: string): Promise<string[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("staff_organizations")
+    .select("organization_id")
+    .eq("user_id", userId);
+  return (data ?? []).map((r) => r.organization_id);
+}
+
+/**
  * Recupera organizations in base al livello di accesso:
  * - super_admin / admin → tutte
  * - manager → solo quelle assegnate in user_organization_access
+ * - staff → solo quelle assegnate in staff_organizations
  * - owner → solo la propria
  */
 export async function getOrganizations(opts: {
@@ -196,6 +253,15 @@ export async function getOrganizations(opts: {
   if (accessLevel === "manager") {
     // Vede solo le organizations assegnate
     const orgIds = await getManagerOrgIds(userId);
+    if (orgIds.length === 0) {
+      return query.eq("id", "00000000-0000-0000-0000-000000000000"); // nessun risultato
+    }
+    return query.in("id", orgIds);
+  }
+
+  if (accessLevel === "staff") {
+    // Vede solo le organizations assegnate in staff_organizations
+    const orgIds = await getStaffOrgIds(userId);
     if (orgIds.length === 0) {
       return query.eq("id", "00000000-0000-0000-0000-000000000000"); // nessun risultato
     }

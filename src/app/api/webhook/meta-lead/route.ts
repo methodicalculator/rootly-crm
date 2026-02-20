@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { metaLeadSchema } from "@/lib/webhooks/schemas";
+import { toRomeDateStr } from "@/lib/date-utils";
 
 export async function POST(request: NextRequest) {
   let body: unknown;
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       note: data.notes || null,
       source: "meta_ads",
       status: "attivo",
-      first_contact_date: new Date().toISOString().split("T")[0],
+      first_contact_date: toRomeDateStr(new Date()),
     })
     .select("id")
     .single();

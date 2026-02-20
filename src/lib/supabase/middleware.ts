@@ -37,7 +37,9 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthPage =
     pathname.startsWith("/login") ||
-    pathname.startsWith("/register");
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password");
 
   const isPendingPage = pathname.startsWith("/pending-approval");
 
@@ -104,15 +106,42 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     } else {
-      // Approved user on auth/pending pages → redirect to dashboard
+      // Approved user on auth/pending pages → redirect based on role
       if (isAuthPage || isPendingPage) {
-        const dest = isPrivileged && !profile.organization_id
-          ? "/admin"
-          : "/dashboard";
+        let dest = "/dashboard";
+        if (profile.role === "super_admin" || profile.role === "admin") {
+          dest = "/admin/dashboard-aggregata";
+        } else if (profile.role === "staff") {
+          dest = "/staff/studi";
+        }
         console.log("[MIDDLEWARE DEBUG] approved user on auth/pending → redirect to", dest);
         const url = request.nextUrl.clone();
         url.pathname = dest;
         return NextResponse.redirect(url);
+      }
+
+      // Guard: admin landing on /dashboard without viewOnly → redirect
+      // /dashboard is for owners and super_admin (impersonate mode)
+      if (
+        pathname === "/dashboard" &&
+        profile.role === "admin" &&
+        !request.nextUrl.searchParams.get("viewOnly")
+      ) {
+        console.log("[MIDDLEWARE DEBUG] admin on /dashboard without viewOnly → redirect to /admin/dashboard-aggregata");
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin/dashboard-aggregata";
+        return NextResponse.redirect(url);
+      }
+
+      // Guard: staff can only access /staff/* and /settings
+      if (isStaff) {
+        const isStaffRoute = pathname.startsWith("/staff") || pathname === "/settings";
+        if (!isStaffRoute) {
+          console.log("[MIDDLEWARE DEBUG] staff on non-staff route → redirect to /staff/studi");
+          const url = request.nextUrl.clone();
+          url.pathname = "/staff/studi";
+          return NextResponse.redirect(url);
+        }
       }
     }
   }

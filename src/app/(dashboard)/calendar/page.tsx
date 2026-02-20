@@ -1,69 +1,193 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar, Plus } from "lucide-react";
+"use client";
 
-const eventLegend = [
-  { color: "bg-[#EF4444]", label: "Scadenze contratto" },
-  { color: "bg-[#F89627]", label: "Check-in clienti" },
-  { color: "bg-[#F59E0B]", label: "Deadline campagne" },
-  { color: "bg-[#10B981]", label: "Call / Meeting" },
-];
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { Calendar as BigCalendar, dateFnsLocalizer, type View } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay, isToday } from "date-fns";
+import { it } from "date-fns/locale";
+import { Loader2 } from "lucide-react";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { getAppointmentsWithClients } from "@/lib/supabase/queries";
+import { CalendarToolbar } from "@/components/calendar/calendar-toolbar";
+import { AppointmentDetailDialog } from "@/components/calendar/appointment-detail-dialog";
+import type { AppointmentWithClient } from "@/types";
+
+const locales = { it };
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
+  getDay,
+  locales,
+});
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  resource: AppointmentWithClient;
+}
 
 export default function CalendarPage() {
+  const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
+  const [appointments, setAppointments] = useState<AppointmentWithClient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>("week");
+  const [date, setDate] = useState(new Date());
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithClient | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const calendarWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to 07:00 on mount
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      const el = calendarWrapperRef.current?.querySelector(".rbc-time-content");
+      if (!el) return;
+      // Each timeslot-group = 64px, 07:00 is the 8th row (index 7)
+      el.scrollTop = 7 * 64;
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    const { data } = await getAppointmentsWithClients(
+      effectiveOrgId,
+      isAdmin,
+      undefined,
+      staffOrgIds
+    );
+    setAppointments((data ?? []) as AppointmentWithClient[]);
+    setLoading(false);
+  }, [effectiveOrgId, isAdmin, staffOrgIds]);
+
+  useEffect(() => {
+    if (orgLoading) return;
+    fetchAppointments();
+  }, [orgLoading, fetchAppointments]);
+
+  const events: CalendarEvent[] = useMemo(
+    () =>
+      appointments.map((appt) => ({
+        id: appt.id,
+        title: appt.clients
+          ? `${appt.clients.nome} ${appt.clients.cognome}`
+          : appt.title,
+        start: new Date(appt.start_time),
+        end: new Date(appt.end_time),
+        resource: appt,
+      })),
+    [appointments]
+  );
+
+  function handleSelectEvent(event: CalendarEvent) {
+    setSelectedAppointment(event.resource);
+    setDetailOpen(true);
+  }
+
+  const messages = {
+    today: "Oggi",
+    previous: "Precedente",
+    next: "Successivo",
+    month: "Mese",
+    week: "Settimana",
+    day: "Giorno",
+    agenda: "Agenda",
+    date: "Data",
+    time: "Ora",
+    event: "Evento",
+    noEventsInRange: "Nessun appuntamento in questo periodo.",
+    showMore: (total: number) => `+${total} altri`,
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Calendario
-          </h1>
-          <p className="text-muted-foreground">
-            Visualizza e gestisci i tuoi appuntamenti e scadenze.
-          </p>
-        </div>
-        <Button className="bg-primary hover:bg-primary/80">
-          <Plus className="mr-2 h-4 w-4" />
-          Nuovo Evento
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Calendario
+        </h1>
+        <p className="text-muted-foreground">
+          Visualizza e gestisci i tuoi appuntamenti.
+        </p>
       </div>
 
-      <Card className="bg-card shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-              <Calendar className="h-5 w-5 text-primary" />
-              Calendario
-            </CardTitle>
-            <div className="flex items-center gap-4">
-              {eventLegend.map((item) => (
-                <div key={item.label} className="flex items-center gap-1.5">
-                  <span className={`inline-block h-3 w-3 rounded-full ${item.color}`} />
-                  <span className="text-xs text-muted-foreground">{item.label}</span>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Caricamento calendario...
+          </p>
+        </div>
+      ) : (
+        <div ref={calendarWrapperRef} className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <BigCalendar
+            localizer={localizer}
+            events={events}
+            view={view}
+            onView={setView}
+            date={date}
+            onNavigate={setDate}
+            views={["week", "month"]}
+            step={60}
+            timeslots={1}
+            onSelectEvent={handleSelectEvent}
+            components={{
+              toolbar: CalendarToolbar,
+              event: ({ event }: { event: CalendarEvent }) => (
+                <div className="leading-tight">
+                  <div className="font-bold text-[0.8125rem]">{event.title}</div>
+                  <div className="text-[0.8125rem] opacity-90">
+                    {format(event.start, "HH:mm")} – {format(event.end, "HH:mm")}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Calendar className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-foreground">
-              Calendario in arrivo
-            </h3>
-            <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
-              Il calendario interattivo sara&apos; disponibile nella prossima fase.
-              Potrai gestire check-in, scadenze e appuntamenti con i clienti.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              ),
+              week: {
+                header: ({ date: d }: { date: Date }) => {
+                  const dayLabel = format(d, "EEE", { locale: it }).toUpperCase();
+                  const dayNum = format(d, "d");
+                  const today = isToday(d);
+                  return (
+                    <div className="flex flex-col items-center gap-0.5 py-1">
+                      <span className="text-[0.875rem] font-medium text-muted-foreground">
+                        {dayLabel}
+                      </span>
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-[0.9375rem] font-semibold ${
+                          today
+                            ? "bg-primary text-primary-foreground"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {dayNum}
+                      </span>
+                    </div>
+                  );
+                },
+              },
+            }}
+            messages={messages}
+            culture="it"
+            style={{ height: "auto" }}
+            formats={{
+              dayHeaderFormat: (d: Date) =>
+                format(d, "EEEE d MMMM", { locale: it }),
+              dayFormat: (d: Date) =>
+                format(d, "EEE d", { locale: it }),
+              timeGutterFormat: (d: Date) =>
+                format(d, "HH:mm"),
+              eventTimeRangeFormat: () => "",
+            }}
+          />
+        </div>
+      )}
+
+      <AppointmentDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        appointment={selectedAppointment}
+      />
     </div>
   );
 }

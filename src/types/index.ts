@@ -41,7 +41,7 @@ export interface Organization {
 // ============================================
 
 export type UserRole = "super_admin" | "admin" | "staff" | "owner";
-export type AccessLevel = "super_admin" | "admin" | "manager" | "owner";
+export type AccessLevel = "super_admin" | "admin" | "manager" | "staff" | "owner";
 
 export interface UserProfile {
   id: string;
@@ -245,6 +245,10 @@ export interface Appointment {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AppointmentWithClient extends Appointment {
+  clients: Pick<Client, "nome" | "cognome"> | null;
 }
 
 // ============================================

@@ -54,12 +54,6 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!professionalType) {
-      setError("Seleziona la tipologia professionale.");
-      setLoading(false);
-      return;
-    }
-
     const supabase = createClient();
     console.log("[REGISTER] signUp start", { email, fullName });
 
@@ -98,7 +92,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           userId: authData.user.id,
           phone,
-          professionalType,
+          professionalType: professionalType || null,
         }),
       });
 
@@ -145,7 +139,7 @@ export default function RegisterPage() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="text-center">
         <CardTitle>Crea un account</CardTitle>
         <CardDescription>
           Inserisci i tuoi dati per registrarti
@@ -196,8 +190,8 @@ export default function RegisterPage() {
           <div className="space-y-2">
             <Label>Tipologia</Label>
             <Select value={professionalType} onValueChange={setProfessionalType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleziona tipologia..." />
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Seleziona tipologia" />
               </SelectTrigger>
               <SelectContent>
                 {PROFESSIONAL_TYPES.map((t) => (

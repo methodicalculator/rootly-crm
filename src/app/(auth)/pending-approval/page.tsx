@@ -30,20 +30,14 @@ export default function PendingApprovalPage() {
 
       if (!profile) return;
 
-      // Admin/super admin should never be on this page
-      if (profile.role === "admin" || profile.role === "super_admin") {
-        router.push(profile.organization_id ? "/dashboard" : "/admin");
+      // Admin/super_admin/staff should never be on this page
+      if (profile.role === "admin" || profile.role === "super_admin" || profile.role === "staff") {
+        router.push("/admin/dashboard-aggregata");
         router.refresh();
         return;
       }
 
-      // Staff users have no organization_id but are already approved
-      if (profile.role === "staff") {
-        router.push("/dashboard");
-        router.refresh();
-        return;
-      }
-
+      // Owner with organization_id is approved
       if (profile.organization_id) {
         router.push("/dashboard");
         router.refresh();

@@ -17,35 +17,37 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // First check if the row exists (trigger may not have fired yet)
-  const { data: existing, error: selectError } = await admin
-    .from("user_profiles")
-    .select("id")
-    .eq("id", userId)
-    .maybeSingle();
+  // Wait for trigger handle_new_user() to create the row (up to 10s)
+  const MAX_RETRIES = 10;
+  let profile = null;
 
-  console.log("[COMPLETE-PROFILE] existing row:", { existing, selectError: selectError?.message });
-
-  if (!existing) {
-    // Row doesn't exist yet — wait briefly for trigger, then retry
-    console.log("[COMPLETE-PROFILE] row not found, waiting 1s...");
+  for (let i = 0; i < MAX_RETRIES; i++) {
     await new Promise((r) => setTimeout(r, 1000));
 
-    const { data: retry } = await admin
+    const { data } = await admin
       .from("user_profiles")
       .select("id")
       .eq("id", userId)
       .maybeSingle();
 
-    if (!retry) {
-      console.error("[COMPLETE-PROFILE] row still missing after wait");
-      return NextResponse.json(
-        { error: "Profilo utente non ancora creato. Riprova tra qualche secondo." },
-        { status: 404 }
-      );
+    if (data) {
+      profile = data;
+      console.log(`[COMPLETE-PROFILE] row found on attempt ${i + 1}/${MAX_RETRIES}`);
+      break;
     }
+
+    console.log(`[COMPLETE-PROFILE] row not found, attempt ${i + 1}/${MAX_RETRIES}`);
   }
 
+  if (!profile) {
+    console.error("[COMPLETE-PROFILE] row missing after all retries");
+    return NextResponse.json(
+      { error: "Timeout: profilo non ancora creato. Riprova tra qualche secondo." },
+      { status: 408 }
+    );
+  }
+
+  // Profile exists — update only
   const { error } = await admin
     .from("user_profiles")
     .update({

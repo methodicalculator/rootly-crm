@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { makeMetricsSchema } from "@/lib/webhooks/schemas";
-import { validateApiKey, logWebhook, getClientIp } from "@/lib/webhooks/validate";
+import { logWebhook, getClientIp } from "@/lib/webhooks/validate";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -47,26 +47,46 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
+  const supabase = createAdminClient();
 
-  // Validate API key and resolve organization
-  const validation = await validateApiKey(request, data.ad_account_id);
-  if (!validation.ok) {
-    const res = { success: false, error: validation.error.message };
+  // Resolve organization by meta_page_id
+  const { data: org, error: orgError } = await supabase
+    .from("organizations")
+    .select("id, status")
+    .eq("meta_page_id", data.meta_page_id)
+    .single();
+
+  if (orgError || !org) {
+    const res = { success: false, error: "Organization not found for this meta_page_id" };
     await logWebhook({
       apiKeyId: null,
       endpoint,
-      statusCode: validation.error.status,
+      statusCode: 404,
       requestBody: body,
       responseBody: res,
-      errorMessage: validation.error.message,
+      errorMessage: "Organization not found for this meta_page_id",
       ipAddress: ip,
       durationMs: Date.now() - startTime,
     });
-    return NextResponse.json(res, { status: validation.error.status });
+    return NextResponse.json(res, { status: 404 });
   }
 
-  const { apiKeyId, organizationId } = validation.data;
-  const supabase = createAdminClient();
+  if (org.status !== "active") {
+    const res = { success: false, error: "Organization is not active" };
+    await logWebhook({
+      apiKeyId: null,
+      endpoint,
+      statusCode: 403,
+      requestBody: body,
+      responseBody: res,
+      errorMessage: "Organization is not active",
+      ipAddress: ip,
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json(res, { status: 403 });
+  }
+
+  const organizationId = org.id;
 
   // Resolve campaign from meta_campaign_id + organization_id (auto-create if missing)
   let campaignId: string;
@@ -86,7 +106,7 @@ export async function POST(request: NextRequest) {
       .insert({
         organization_id: organizationId,
         meta_campaign_id: data.meta_campaign_id,
-        nome_campagna: data.campaign_name || `Campaign ${data.meta_campaign_id}`,
+        nome_campagna: `Campaign ${data.meta_campaign_id}`,
         status: "attiva",
       })
       .select("id")
@@ -95,7 +115,7 @@ export async function POST(request: NextRequest) {
     if (createError || !newCampaign) {
       const res = { success: false, error: "Failed to create campaign" };
       await logWebhook({
-        apiKeyId,
+        apiKeyId: null,
         endpoint,
         statusCode: 500,
         requestBody: body,
@@ -111,21 +131,6 @@ export async function POST(request: NextRequest) {
   }
 
   // Upsert campaign metrics (idempotent on campaign_id + date)
-  console.log('========== INSERTING METRICS ==========')
-  console.log('Campaign ID:', campaignId)
-  console.log('Metrics data:', {
-    campaign_id: campaignId,
-    date: data.date,
-    impressions: data.impressions,
-    clicks: data.clicks,
-    spend: data.spend,
-    leads: data.leads,
-    cpc: data.cpc ?? null,
-    cpa: data.cpa ?? null,
-    ctr: data.ctr ?? null,
-    cpm: data.cpm ?? null,
-  })
-
   const { data: metric, error: upsertError } = await supabase
     .from("campaign_metrics")
     .upsert(
@@ -134,10 +139,10 @@ export async function POST(request: NextRequest) {
         date: data.date,
         impressions: data.impressions,
         clicks: data.clicks,
-        spend: data.spend,
-        leads: data.leads,
+        spend: data.budget_spent,
+        leads: 0,
         cpc: data.cpc ?? null,
-        cpa: data.cpa ?? null,
+        cpa: null,
         ctr: data.ctr ?? null,
         cpm: data.cpm ?? null,
       },
@@ -146,14 +151,10 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
-  console.log('Insert result:', metric)
-  console.log('Insert error:', upsertError)
-
   if (upsertError) {
-    console.error('FAILED TO INSERT METRICS:', upsertError)
     const res = { success: false, error: "Failed to upsert metrics" };
     await logWebhook({
-      apiKeyId,
+      apiKeyId: null,
       endpoint,
       statusCode: 500,
       requestBody: body,
@@ -165,11 +166,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(res, { status: 500 });
   }
 
-  console.log('========== METRICS SAVED ==========')
-
   const res = { success: true, data: { metrics_saved: true, metric_id: metric.id } };
   await logWebhook({
-    apiKeyId,
+    apiKeyId: null,
     endpoint,
     statusCode: 200,
     requestBody: body,

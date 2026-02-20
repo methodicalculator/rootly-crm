@@ -54,3 +54,12 @@ export const campaignFormSchema = z.object({
 });
 
 export type CampaignFormValues = z.infer<typeof campaignFormSchema>;
+
+export const appointmentFormSchema = z.object({
+  date: z.date({ error: "Seleziona una data" }),
+  time: z.string().min(1, "Seleziona un orario"),
+  duration: z.number().min(15, "Seleziona una durata"),
+  notes: z.string().optional(),
+});
+
+export type AppointmentFormValues = z.infer<typeof appointmentFormSchema>;

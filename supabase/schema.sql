@@ -479,6 +479,16 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Staff: check if the current user is assigned to a given organization
+CREATE OR REPLACE FUNCTION public.is_staff_of_org(check_org_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS(
+    SELECT 1 FROM public.staff_organizations
+    WHERE staff_organizations.user_id = auth.uid()
+      AND staff_organizations.organization_id = check_org_id
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 -- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
@@ -498,9 +508,17 @@ ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_logs ENABLE ROW LEVEL SECURITY;
 
 -- ---- user_profiles ----
-CREATE POLICY "Users can read own profile or admin"
+CREATE POLICY "Users can read own profile or admin or co-staff"
   ON user_profiles FOR SELECT TO authenticated
-  USING (auth.uid() = id OR is_admin_user());
+  USING (
+    auth.uid() = user_profiles.id
+    OR is_admin_user()
+    OR EXISTS(
+      SELECT 1 FROM staff_organizations s1
+      JOIN staff_organizations s2 ON s1.organization_id = s2.organization_id
+      WHERE s1.user_id = auth.uid() AND s2.user_id = user_profiles.id
+    )
+  );
 
 CREATE POLICY "Users can insert own profile"
   ON user_profiles FOR INSERT TO authenticated
@@ -511,9 +529,13 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id);
 
 -- ---- organizations ----
-CREATE POLICY "Users can read own org or admin"
+CREATE POLICY "Users can read own org or admin or staff"
   ON organizations FOR SELECT TO authenticated
-  USING (id = get_user_org_id() OR is_admin_user());
+  USING (
+    organizations.id = get_user_org_id()
+    OR is_admin_user()
+    OR is_staff_of_org(organizations.id)
+  );
 
 CREATE POLICY "Admins can insert organizations"
   ON organizations FOR INSERT TO authenticated
@@ -534,24 +556,24 @@ BEGIN
     'notifications', 'events', 'appointments'
   ])
   LOOP
-    -- SELECT: own org or admin
+    -- SELECT: own org, admin, or assigned staff
     EXECUTE format(
       'CREATE POLICY "%s_select" ON %I FOR SELECT TO authenticated USING (
-        organization_id = get_user_org_id() OR is_admin_user()
+        organization_id = get_user_org_id() OR is_admin_user() OR is_staff_of_org(organization_id)
       )',
       tbl, tbl
     );
-    -- INSERT: own org or admin
+    -- INSERT: own org, admin, or assigned staff
     EXECUTE format(
       'CREATE POLICY "%s_insert" ON %I FOR INSERT TO authenticated WITH CHECK (
-        organization_id = get_user_org_id() OR is_admin_user()
+        organization_id = get_user_org_id() OR is_admin_user() OR is_staff_of_org(organization_id)
       )',
       tbl, tbl
     );
-    -- UPDATE: own org or admin
+    -- UPDATE: own org, admin, or assigned staff
     EXECUTE format(
       'CREATE POLICY "%s_update" ON %I FOR UPDATE TO authenticated USING (
-        organization_id = get_user_org_id() OR is_admin_user()
+        organization_id = get_user_org_id() OR is_admin_user() OR is_staff_of_org(organization_id)
       )',
       tbl, tbl
     );
@@ -569,8 +591,10 @@ $$;
 -- ---- campaign_metrics ----
 CREATE POLICY "campaign_metrics_select" ON campaign_metrics FOR SELECT TO authenticated
   USING (
-    campaign_id IN (
-      SELECT id FROM campaigns WHERE organization_id = get_user_org_id()
+    campaign_metrics.campaign_id IN (
+      SELECT campaigns.id FROM campaigns
+      WHERE campaigns.organization_id = get_user_org_id()
+        OR is_staff_of_org(campaigns.organization_id)
     )
     OR is_admin_user()
   );
@@ -583,7 +607,11 @@ CREATE POLICY "campaign_metrics_update" ON campaign_metrics FOR UPDATE TO authen
 
 -- ---- invoices ----
 CREATE POLICY "invoices_select" ON invoices FOR SELECT TO authenticated
-  USING (organization_id = get_user_org_id() OR is_admin_user());
+  USING (
+    invoices.organization_id = get_user_org_id()
+    OR is_admin_user()
+    OR is_staff_of_org(invoices.organization_id)
+  );
 
 CREATE POLICY "invoices_insert" ON invoices FOR INSERT TO authenticated
   WITH CHECK (is_admin_user());

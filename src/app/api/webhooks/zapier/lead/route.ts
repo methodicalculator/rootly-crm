@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { zapierLeadSchema } from "@/lib/webhooks/schemas";
 import { validateApiKey, logWebhook, getClientIp } from "@/lib/webhooks/validate";
+import { toRomeDateStr } from "@/lib/date-utils";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       note: data.note || null,
       source: "meta_ads",
       status: "attivo",
-      first_contact_date: new Date().toISOString().split("T")[0],
+      first_contact_date: toRomeDateStr(new Date()),
     })
     .select("id")
     .single();
