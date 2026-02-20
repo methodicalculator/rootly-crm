@@ -146,7 +146,7 @@ export default function ClientsPage() {
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">Contatto</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Stato Cliente</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Fonte</th>
-                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Ultimo contatto</th>
+                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Data Contatto</th>
               </tr>
             </thead>
             <tbody>
@@ -217,8 +217,8 @@ export default function ClientsPage() {
                       )}
                     </td>
                     <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">
-                      {client.last_contact_date
-                        ? new Date(client.last_contact_date).toLocaleDateString("it-IT")
+                      {client.created_at
+                        ? new Date(client.created_at).toLocaleDateString("it-IT")
                         : "\u2014"}
                     </td>
                   </tr>

@@ -103,6 +103,14 @@ export function SalesPipelineSelect({
         updates.revenue = null;
       }
 
+      // If leaving "appointment_scheduled", delete associated appointment
+      if (currentStage === "appointment_scheduled" && newStage !== "appointment_scheduled") {
+        await supabase
+          .from("appointments")
+          .delete()
+          .eq("client_id", clientId);
+      }
+
       const { error } = await supabase
         .from("clients")
         .update(updates)

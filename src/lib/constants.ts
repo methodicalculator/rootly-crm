@@ -175,6 +175,7 @@ export const ADMIN_NAV_ITEMS = [
   { href: "/admin/dashboard-aggregata", label: "Dashboard Aggregata", icon: "LayoutDashboard" as const },
   { href: "/admin/studi", label: "Gestione Studi", icon: "Building2" as const },
   { href: "/admin/approvazioni", label: "Approvazioni", icon: "ClipboardCheck" as const },
+  { href: "/admin/utenti", label: "Gestione Utenti", icon: "UserCog" as const },
 ] as const;
 
 export const STAFF_NAV_ITEMS = [

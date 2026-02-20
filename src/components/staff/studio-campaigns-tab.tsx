@@ -276,7 +276,7 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold text-foreground">
-                            {campaign.nome_campagna}
+                            {/^Campaign \d+$/.test(campaign.nome_campagna) ? "Campagna Meta" : campaign.nome_campagna}
                           </h3>
                           <span
                             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}

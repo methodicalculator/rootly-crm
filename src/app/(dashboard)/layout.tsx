@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { ImpersonateBanner } from "@/components/admin/ImpersonateBanner";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
+import { AutoRefresh } from "@/components/auto-refresh";
 import type { UserProfile } from "@/types";
 
 export default async function DashboardLayout({
@@ -29,6 +30,7 @@ export default async function DashboardLayout({
 
   return (
     <OrganizationProvider>
+      <AutoRefresh />
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
