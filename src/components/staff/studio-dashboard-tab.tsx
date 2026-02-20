@@ -10,6 +10,7 @@ import {
 import {
   Users,
   UserPlus,
+  UserCheck,
   Wallet,
   Calendar,
   Loader2,
@@ -29,6 +30,7 @@ import {
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
+import { LEAD_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -45,7 +47,8 @@ const MONTH_NAMES_FULL = [
 ];
 
 export function StudioDashboardTab({ organizationId }: { organizationId: string }) {
-  const [activeClients, setActiveClients] = useState(0);
+  const [totalLeadCount, setTotalLeadCount] = useState(0);
+  const [totalClientCount, setTotalClientCount] = useState(0);
   const [newLeads, setNewLeads] = useState(0);
   const [spendMonth, setSpendMonth] = useState(0);
   const [weekAppointments, setWeekAppointments] = useState(0);
@@ -93,7 +96,8 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       endOfWeek.setHours(23, 59, 59, 999);
 
       const [
-        clientsRes,
+        leadStagesRes,
+        clientStagesRes,
         leadsRes,
         appointmentsRes,
         chartClientsRes,
@@ -101,7 +105,16 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         orgCampaignsRes,
       ] = await Promise.all([
         orgFilter(
-          supabase.from("clients").select("id", { count: "exact", head: true })
+          supabase
+            .from("clients")
+            .select("id", { count: "exact", head: true })
+            .in("sales_stage", LEAD_STAGES)
+        ),
+        orgFilter(
+          supabase
+            .from("clients")
+            .select("id", { count: "exact", head: true })
+            .in("sales_stage", [...CLIENT_STAGES])
         ),
         orgFilter(
           supabase
@@ -133,7 +146,8 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         orgFilter(supabase.from("campaigns").select("id")),
       ]);
 
-      setActiveClients(clientsRes.count ?? 0);
+      setTotalLeadCount(leadStagesRes.count ?? 0);
+      setTotalClientCount(clientStagesRes.count ?? 0);
       setNewLeads(leadsRes.count ?? 0);
       setWeekAppointments(appointmentsRes.count ?? 0);
 
@@ -195,7 +209,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -216,7 +230,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lead Totali
+              Lead
             </CardTitle>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
               <Users className="h-5 w-5 text-primary" />
@@ -224,9 +238,26 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           </CardHeader>
           <CardContent>
             <div className="text-[32px] font-bold leading-tight text-foreground">
-              {activeClients}
+              {totalLeadCount}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Totale lead in database</p>
+            <p className="mt-1 text-xs text-muted-foreground">In fase di acquisizione</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Clienti
+            </CardTitle>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
+              <UserCheck className="h-5 w-5 text-[#10B981]" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-[32px] font-bold leading-tight text-foreground">
+              {totalClientCount}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Seduta o percorso</p>
           </CardContent>
         </Card>
 

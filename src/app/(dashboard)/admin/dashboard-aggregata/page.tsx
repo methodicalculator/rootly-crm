@@ -25,6 +25,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { ORGANIZATION_TYPE_CONFIG } from "@/lib/constants";
+import { CLIENT_STAGES, LEAD_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { toast } from "sonner";
 import type { Organization, OrganizationType } from "@/types";
@@ -36,6 +37,7 @@ interface StudioRow {
   name: string;
   type: OrganizationType;
   status: string;
+  totalLeads: number;
   totalClients: number;
   leadsMonth: number;
   spendMonth: number;
@@ -157,12 +159,18 @@ export default function AdminDashboardPage() {
 
     const studioRows = await Promise.all(
       allOrgs.map(async (org) => {
-        const [orgClientsRes, orgLeadsRes, orgRevenueRes, orgCampaignsRes] =
+        const [orgLeadStagesRes, orgClientStagesRes, orgLeadsRes, orgRevenueRes, orgCampaignsRes] =
           await Promise.all([
             supabase
               .from("clients")
               .select("id", { count: "exact", head: true })
-              .eq("organization_id", org.id),
+              .eq("organization_id", org.id)
+              .in("sales_stage", LEAD_STAGES),
+            supabase
+              .from("clients")
+              .select("id", { count: "exact", head: true })
+              .eq("organization_id", org.id)
+              .in("sales_stage", CLIENT_STAGES),
             supabase
               .from("clients")
               .select("id", { count: "exact", head: true })
@@ -234,7 +242,7 @@ export default function AdminDashboardPage() {
           .eq("organization_id", org.id)
           .gte("created_at", sevenDaysAgo.toISOString());
 
-        if ((recentLeadCount ?? 0) === 0 && (orgClientsRes.count ?? 0) > 0) {
+        if ((recentLeadCount ?? 0) === 0 && (orgLeadStagesRes.count ?? 0) + (orgClientStagesRes.count ?? 0) > 0) {
           alertList.push({
             orgId: org.id,
             orgName: org.name,
@@ -247,7 +255,8 @@ export default function AdminDashboardPage() {
           name: org.name,
           type: org.type as OrganizationType,
           status: org.status,
-          totalClients: orgClientsRes.count ?? 0,
+          totalLeads: orgLeadStagesRes.count ?? 0,
+          totalClients: orgClientStagesRes.count ?? 0,
           leadsMonth: orgLeadsMonth,
           spendMonth: orgSpend,
           cpl,
@@ -336,6 +345,9 @@ export default function AdminDashboardPage() {
                       CPL
                     </th>
                     <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
+                      Lead
+                    </th>
+                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
                       Clienti
                     </th>
                     <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
@@ -391,6 +403,9 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="px-3 py-2.5 text-right text-[16px]">
                           <CplBadge cpl={s.cpl} />
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                          {s.totalLeads}
                         </td>
                         <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
                           {s.totalClients}

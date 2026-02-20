@@ -21,7 +21,8 @@
       "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/versions/node/*/bin:$HOME/.volta/bin:$PATH\")",
       "Bash(export PATH:*)",
       "Bash(npx next lint:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(cat:*)"
     ]
   }
 }

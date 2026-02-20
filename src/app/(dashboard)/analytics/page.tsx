@@ -41,17 +41,12 @@ import { createClient } from "@/lib/supabase/client";
 import { getClients } from "@/lib/supabase/queries";
 import { toRomeDateStr } from "@/lib/date-utils";
 import { subDays, startOfDay, endOfDay } from "date-fns";
+import { IN_LAVORAZIONE_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
 import type { Client, SalesStage } from "@/types";
 
 const FULL_MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
-];
-
-const IN_LAVORAZIONE_STAGES: SalesStage[] = [
-  "contacted",
-  "responded",
-  "appointment_scheduled",
 ];
 
 
@@ -222,8 +217,6 @@ export default function AnalyticsPage() {
   }, [filteredClients]);
 
   // === Monthly conversion table (calendar months from contract start, max 3) ===
-  const CLIENT_STAGES: SalesStage[] = ["appointment_completed", "converted"];
-
   const monthlyTable = useMemo(() => {
     const now = new Date();
     const start = contractStartDate ? new Date(contractStartDate) : null;

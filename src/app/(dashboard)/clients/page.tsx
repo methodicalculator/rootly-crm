@@ -6,14 +6,10 @@ import { Users, Plus, Loader2, Mail, Phone } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
+import { IN_LAVORAZIONE_STAGES } from "@/lib/constants/stages";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
 import type { Client, SalesStage } from "@/types";
-
-const IN_LAVORAZIONE_STAGES: SalesStage[] = [
-  "responded",
-  "appointment_scheduled",
-];
 
 const tabs = [
   { key: "tutti", label: "Tutti" },

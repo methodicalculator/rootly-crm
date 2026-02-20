@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users,
   UserPlus,
+  UserCheck,
   Wallet,
   Calendar,
   Loader2,
@@ -36,6 +37,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
+import { LEAD_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -64,7 +66,8 @@ function DashboardContent() {
   // The org ID to use for queries: viewOrgId in view mode, otherwise effectiveOrgId
   const queryOrgId = isViewMode ? viewOrgId : effectiveOrgId;
 
-  const [activeClients, setActiveClients] = useState(0);
+  const [totalLeadCount, setTotalLeadCount] = useState(0);
+  const [totalClientCount, setTotalClientCount] = useState(0);
   const [newLeads, setNewLeads] = useState(0);
   const [spendMonth, setSpendMonth] = useState(0);
   const [weekAppointments, setWeekAppointments] = useState(0);
@@ -138,20 +141,29 @@ function DashboardContent() {
 
       // --- All queries in parallel ---
       const [
-        clientsRes,
+        leadStagesRes,
+        clientStagesRes,
         leadsRes,
         appointmentsRes,
         chartClientsRes,
         recentClientsRes,
         orgCampaignsRes,
       ] = await Promise.all([
-        // 1) Lead Totali
+        // 1) Lead (solo LEAD_STAGES)
         orgFilter(
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
+            .in("sales_stage", LEAD_STAGES)
         ),
-        // 2) Nuovi Lead Questo Mese
+        // 2) Clienti (solo CLIENT_STAGES)
+        orgFilter(
+          supabase
+            .from("clients")
+            .select("id", { count: "exact", head: true })
+            .in("sales_stage", [...CLIENT_STAGES])
+        ),
+        // 3) Nuovi Lead Questo Mese
         orgFilter(
           supabase
             .from("clients")
@@ -191,7 +203,8 @@ function DashboardContent() {
       ]);
 
       // --- KPIs ---
-      setActiveClients(clientsRes.count ?? 0);
+      setTotalLeadCount(leadStagesRes.count ?? 0);
+      setTotalClientCount(clientStagesRes.count ?? 0);
       setNewLeads(leadsRes.count ?? 0);
       setWeekAppointments(appointmentsRes.count ?? 0);
 
@@ -312,7 +325,7 @@ function DashboardContent() {
       </div>
 
       {/* ====== SEZIONE 1 – KPI Cards ====== */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {/* Nuovi Lead Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -337,7 +350,7 @@ function DashboardContent() {
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lead Totali
+              Lead
             </CardTitle>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
               <Users className="h-5 w-5 text-primary" />
@@ -345,10 +358,30 @@ function DashboardContent() {
           </CardHeader>
           <CardContent>
             <div className="text-[32px] font-bold leading-tight text-foreground">
-              {activeClients}
+              {totalLeadCount}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Totale lead in database
+              In fase di acquisizione
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Clienti */}
+        <Card className="bg-card shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Clienti
+            </CardTitle>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
+              <UserCheck className="h-5 w-5 text-[#10B981]" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-[32px] font-bold leading-tight text-foreground">
+              {totalClientCount}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Seduta o percorso
             </p>
           </CardContent>
         </Card>

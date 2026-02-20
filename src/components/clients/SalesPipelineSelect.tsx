@@ -20,6 +20,7 @@ import { Loader2, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
+import { REVENUE_STAGES, STAGE_ORDER } from "@/lib/constants/stages";
 import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
 import type { SalesStage, LostReason } from "@/types";
 
@@ -29,8 +30,6 @@ const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
   converted: "Percorso Acq.",
 };
 
-const REVENUE_STAGES: SalesStage[] = ["appointment_completed", "converted"];
-
 interface SalesPipelineSelectProps {
   clientId: string;
   currentStage: SalesStage;
@@ -39,15 +38,6 @@ interface SalesPipelineSelectProps {
   organizationId: string;
   clientName: string;
 }
-
-const STAGE_ORDER: SalesStage[] = [
-  "new",
-  "contacted",
-  "appointment_scheduled",
-  "appointment_completed",
-  "converted",
-  "lost",
-];
 
 const LOST_REASONS: LostReason[] = [
   "disdetta",
@@ -136,7 +126,8 @@ export function SalesPipelineSelect({
         .eq("id", clientId);
 
       if (error) {
-        toast.error("Errore durante l'aggiornamento");
+        console.error("[STAGE-UPDATE] Supabase error:", error.message, error.details, { clientId, updates });
+        toast.error(`Errore durante l'aggiornamento: ${error.message}`);
         return;
       }
 
