@@ -54,8 +54,8 @@ export default function CalendarPage() {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true);
+  const fetchAppointments = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     const { data } = await getAppointmentsWithClients(
       effectiveOrgId,
       isAdmin,
@@ -63,7 +63,7 @@ export default function CalendarPage() {
       staffOrgIds
     );
     setAppointments((data ?? []) as AppointmentWithClient[]);
-    setLoading(false);
+    if (showLoader) setLoading(false);
   }, [effectiveOrgId, isAdmin, staffOrgIds]);
 
   useEffect(() => {
@@ -96,9 +96,16 @@ export default function CalendarPage() {
   }
 
   function handleCancelComplete() {
+    // Optimistically remove the cancelled event from local state
+    if (cancellingAppointment) {
+      setAppointments((prev) =>
+        prev.filter((a) => a.id !== cancellingAppointment.id)
+      );
+    }
     setCancelFlowOpen(false);
     setCancellingAppointment(null);
-    fetchAppointments();
+    // Background refresh to sync with DB (no loading spinner)
+    fetchAppointments(false);
   }
 
   const messages = {
