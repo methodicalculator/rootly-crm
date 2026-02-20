@@ -24,13 +24,13 @@ import {
 } from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
-import { getCampaigns } from "@/lib/supabase/queries";
+import { getCampaigns, getClients } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
 import { CampaignFormDialog } from "@/components/campaigns/campaign-form-dialog";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { toRomeDateStr } from "@/lib/date-utils";
-import { subDays } from "date-fns";
-import type { Campaign, CampaignMetrics } from "@/types";
+import { subDays, startOfDay, endOfDay } from "date-fns";
+import type { Campaign, CampaignMetrics, Client } from "@/types";
 
 // ── Tabs ──────────────────────────────────────────────────────────
 const tabs = [
@@ -45,8 +45,6 @@ interface AggregateMetrics {
   totalImpressions: number;
   totalClicks: number;
   totalSpend: number;
-  totalLeads: number;
-  avgCpa: number;
   avgCtr: number;
 }
 
@@ -80,6 +78,7 @@ export default function CampaignsPage() {
 
   const [activeTab, setActiveTab] = useState<string>("tutte");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<string, CampaignMetrics[]>>(
     new Map()
   );
@@ -107,6 +106,10 @@ export default function CampaignsPage() {
     );
     const allCampaigns = (campaignsData ?? []) as Campaign[];
     setCampaigns(allCampaigns);
+
+    // Fetch clients for lead counting
+    const { data: clientsData } = await getClients(effectiveOrgId, isAdmin, undefined, staffOrgIds);
+    setClients((clientsData ?? []) as Client[]);
 
     if (allCampaigns.length === 0) {
       setMetricsMap(new Map());
@@ -146,13 +149,10 @@ export default function CampaignsPage() {
       );
       const totalClicks = list.reduce((s, m) => s + (m.clicks ?? 0), 0);
       const totalSpend = list.reduce((s, m) => s + (m.spend ?? 0), 0);
-      const totalLeads = list.reduce((s, m) => s + (m.leads ?? 0), 0);
       aggs.set(cid, {
         totalImpressions,
         totalClicks,
         totalSpend,
-        totalLeads,
-        avgCpa: totalLeads > 0 ? totalSpend / totalLeads : 0,
         avgCtr:
           totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
       });
@@ -165,6 +165,15 @@ export default function CampaignsPage() {
     if (orgLoading) return;
     fetchData();
   }, [orgLoading, fetchData]);
+
+  // ── Lead count from clients (filtered by dateRange) ──────────
+  const leadCount = useMemo(() =>
+    clients.filter((c) => {
+      const d = new Date(c.created_at);
+      return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
+    }).length,
+    [clients, dateRange]
+  );
 
   // ── Filtered campaigns by tab ─────────────────────────────────
   const filteredCampaigns = useMemo(() => {
@@ -185,9 +194,9 @@ export default function CampaignsPage() {
         }),
         Impressions: m.impressions,
         Click: m.clicks,
-        Lead: m.leads,
+        Lead: clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length,
       }));
-  }, [expandedId, metricsMap]);
+  }, [expandedId, metricsMap, clients]);
 
   // ── Sorted daily metrics for expanded table ───────────────────
   const sortedDailyMetrics = useMemo(() => {
@@ -214,8 +223,8 @@ export default function CampaignsPage() {
           vb = b.spend;
           break;
         case "leads":
-          va = a.leads;
-          vb = b.leads;
+          va = clients.filter((c) => toRomeDateStr(c.created_at) === a.date).length;
+          vb = clients.filter((c) => toRomeDateStr(c.created_at) === b.date).length;
           break;
         case "cpa":
           va = a.cpa ?? 0;
@@ -235,7 +244,7 @@ export default function CampaignsPage() {
       }
       return sortDir === "asc" ? va - vb : vb - va;
     });
-  }, [expandedId, metricsMap, sortCol, sortDir]);
+  }, [expandedId, metricsMap, sortCol, sortDir, clients]);
 
   // ── Interactions ──────────────────────────────────────────────
   function toggleSort(col: SortColumn) {
@@ -391,7 +400,7 @@ export default function CampaignsPage() {
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
                         <MetricBox
                           label="Lead"
-                          value={fmtNum(agg.totalLeads)}
+                          value={fmtNum(leadCount)}
                         />
                         <MetricBox
                           label="Spesa"
@@ -400,8 +409,8 @@ export default function CampaignsPage() {
                         <MetricBox
                           label="CPA"
                           value={
-                            agg.avgCpa > 0
-                              ? `€${agg.avgCpa.toFixed(2)}`
+                            leadCount > 0
+                              ? `€${(agg.totalSpend / leadCount).toFixed(2)}`
                               : "—"
                           }
                         />
@@ -519,21 +528,7 @@ export default function CampaignsPage() {
                                   onSort={toggleSort}
                                 />
                                 <SortableHeader
-                                  label="Impressions"
-                                  column="impressions"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Click"
-                                  column="clicks"
-                                  currentCol={sortCol}
-                                  dir={sortDir}
-                                  onSort={toggleSort}
-                                />
-                                <SortableHeader
-                                  label="Spend"
+                                  label="Spesa"
                                   column="spend"
                                   currentCol={sortCol}
                                   dir={sortDir}
@@ -567,6 +562,20 @@ export default function CampaignsPage() {
                                   dir={sortDir}
                                   onSort={toggleSort}
                                 />
+                                <SortableHeader
+                                  label="Click"
+                                  column="clicks"
+                                  currentCol={sortCol}
+                                  dir={sortDir}
+                                  onSort={toggleSort}
+                                />
+                                <SortableHeader
+                                  label="Impressions"
+                                  column="impressions"
+                                  currentCol={sortCol}
+                                  dir={sortDir}
+                                  onSort={toggleSort}
+                                />
                               </tr>
                             </thead>
                             <tbody>
@@ -581,21 +590,16 @@ export default function CampaignsPage() {
                                     )}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.impressions.toLocaleString("it-IT")}
-                                  </td>
-                                  <td className="px-3 py-2 text-muted-foreground">
-                                    {m.clicks.toLocaleString("it-IT")}
-                                  </td>
-                                  <td className="px-3 py-2 text-muted-foreground">
                                     {fmtEur(m.spend)}
                                   </td>
                                   <td className="px-3 py-2 font-medium text-foreground">
-                                    {m.leads}
+                                    {clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.cpa != null
-                                      ? `€${m.cpa.toFixed(2)}`
-                                      : "—"}
+                                    {(() => {
+                                      const dayLeads = clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length;
+                                      return dayLeads > 0 ? `€${(m.spend / dayLeads).toFixed(2)}` : "—";
+                                    })()}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
                                     {m.ctr != null
@@ -606,6 +610,12 @@ export default function CampaignsPage() {
                                     {m.cpm != null
                                       ? `€${m.cpm.toFixed(2)}`
                                       : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground">
+                                    {m.clicks.toLocaleString("it-IT")}
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground">
+                                    {m.impressions.toLocaleString("it-IT")}
                                   </td>
                                 </tr>
                               ))}

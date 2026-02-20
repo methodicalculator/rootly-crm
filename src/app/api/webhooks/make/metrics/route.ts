@@ -96,43 +96,86 @@ export async function POST(request: NextRequest) {
   // Resolve campaign from meta_campaign_id + organization_id (auto-create if missing)
   let campaignId: string;
 
-  const { data: existingCampaign } = await supabase
-    .from("campaigns")
-    .select("id")
-    .eq("meta_campaign_id", data.meta_campaign_id)
-    .eq("organization_id", organizationId)
-    .single();
-
-  if (existingCampaign) {
-    campaignId = existingCampaign.id;
-  } else {
-    const { data: newCampaign, error: createError } = await supabase
+  if (data.meta_campaign_id) {
+    // meta_campaign_id provided: look up by meta_campaign_id + org, create if not found
+    const { data: existingCampaign } = await supabase
       .from("campaigns")
-      .insert({
-        organization_id: organizationId,
-        meta_campaign_id: data.meta_campaign_id,
-        nome_campagna: `Campaign ${data.meta_campaign_id}`,
-        status: "attiva",
-      })
       .select("id")
+      .eq("meta_campaign_id", data.meta_campaign_id)
+      .eq("organization_id", organizationId)
       .single();
 
-    if (createError || !newCampaign) {
-      const res = { success: false, error: "Failed to create campaign" };
-      await logWebhook({
-        apiKeyId: null,
-        endpoint,
-        statusCode: 500,
-        requestBody: merged,
-        responseBody: res,
-        errorMessage: createError?.message ?? "Unknown error",
-        ipAddress: ip,
-        durationMs: Date.now() - startTime,
-      });
-      return NextResponse.json(res, { status: 500 });
-    }
+    if (existingCampaign) {
+      campaignId = existingCampaign.id;
+    } else {
+      const { data: newCampaign, error: createError } = await supabase
+        .from("campaigns")
+        .insert({
+          organization_id: organizationId,
+          meta_campaign_id: data.meta_campaign_id,
+          nome_campagna: "Campagna Meta",
+          status: "attiva",
+        })
+        .select("id")
+        .single();
 
-    campaignId = newCampaign.id;
+      if (createError || !newCampaign) {
+        const res = { success: false, error: "Failed to create campaign" };
+        await logWebhook({
+          apiKeyId: null,
+          endpoint,
+          statusCode: 500,
+          requestBody: merged,
+          responseBody: res,
+          errorMessage: createError?.message ?? "Unknown error",
+          ipAddress: ip,
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json(res, { status: 500 });
+      }
+
+      campaignId = newCampaign.id;
+    }
+  } else {
+    // No meta_campaign_id: find active campaigns for this org
+    const { data: activeCampaigns } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("status", "attiva");
+
+    if (activeCampaigns && activeCampaigns.length === 1) {
+      campaignId = activeCampaigns[0].id;
+    } else {
+      // 0 or >1 active campaigns: create a new one
+      const { data: newCampaign, error: createError } = await supabase
+        .from("campaigns")
+        .insert({
+          organization_id: organizationId,
+          meta_campaign_id: null,
+          nome_campagna: "Campagna Meta",
+          status: "attiva",
+        })
+        .select("id")
+        .single();
+
+      if (createError || !newCampaign) {
+        const res = { success: false, error: "Failed to create campaign" };
+        await logWebhook({
+          apiKeyId: null,
+          endpoint,
+          statusCode: 500,
+          requestBody: merged,
+          responseBody: res,
+          errorMessage: createError?.message ?? "Unknown error",
+          ipAddress: ip,
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json(res, { status: 500 });
+      }
+
+      campaignId = newCampaign.id;
+    }
   }
 
   // Upsert campaign metrics (idempotent on campaign_id + date)

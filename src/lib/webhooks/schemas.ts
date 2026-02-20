@@ -17,7 +17,7 @@ export type ZapierLeadPayload = z.infer<typeof zapierLeadSchema>;
 // Uses z.coerce.number() because Make.com may send numeric values as strings
 export const makeMetricsSchema = z.object({
   meta_page_id: z.string().min(1, "meta_page_id is required"),
-  meta_campaign_id: z.string().min(1, "meta_campaign_id is required"),
+  meta_campaign_id: z.string().min(1).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
   budget_spent: z.coerce.number().min(0),
   impressions: z.coerce.number().int().min(0),
