@@ -87,6 +87,7 @@ export async function getAppointmentsWithClients(
   let query = supabase
     .from("appointments")
     .select("*, clients(nome, cognome)")
+    .neq("status", "cancelled")
     .order("start_time", { ascending: true });
 
   if (effectiveOrgId) {

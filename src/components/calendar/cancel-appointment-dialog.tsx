@@ -149,17 +149,17 @@ export function CancelAppointmentDialog({
     try {
       const supabase = createClient();
 
-      console.log("[MARK-LOST] Deleting appointment", appointment.id, { table: "appointments" });
+      console.log("[MARK-LOST] Cancelling appointment", appointment.id, { table: "appointments" });
 
-      // Delete appointment
+      // Mark appointment as cancelled (UPDATE instead of DELETE — RLS allows UPDATE for org users, not DELETE)
       const { error: delErr } = await supabase
         .from("appointments")
-        .delete()
+        .update({ status: "cancelled" })
         .eq("id", appointment.id);
 
       if (delErr) {
-        console.error("[MARK-LOST] appointments DELETE failed:", delErr.message);
-        toast.error("Errore nell'eliminazione dell'appuntamento", {
+        console.error("[MARK-LOST] appointments UPDATE failed:", delErr.message);
+        toast.error("Errore nell'aggiornamento dell'appuntamento", {
           description: delErr.message,
         });
         return;
