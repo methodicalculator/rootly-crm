@@ -64,18 +64,20 @@ export default function GestioneUtentiPage() {
       .select("id, full_name, email, role, organization_id, organizations(name)")
       .order("created_at", { ascending: false });
 
-    const rows: UserRow[] = ((data ?? []) as UserRowRaw[]).map((u) => {
-      const org = u.organizations;
-      const orgName = Array.isArray(org) ? (org[0]?.name ?? null) : (org?.name ?? null);
-      return {
-        id: u.id,
-        full_name: u.full_name,
-        email: u.email,
-        role: u.role,
-        organization_id: u.organization_id,
-        org_name: orgName,
-      };
-    });
+    const rows: UserRow[] = ((data ?? []) as UserRowRaw[])
+      .filter((u) => u.role !== "super_admin")
+      .map((u) => {
+        const org = u.organizations;
+        const orgName = Array.isArray(org) ? (org[0]?.name ?? null) : (org?.name ?? null);
+        return {
+          id: u.id,
+          full_name: u.full_name,
+          email: u.email,
+          role: u.role,
+          organization_id: u.organization_id,
+          org_name: orgName,
+        };
+      });
     setUsers(rows);
     setLoading(false);
   }, []);

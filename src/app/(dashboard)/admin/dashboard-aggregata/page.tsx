@@ -8,25 +8,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  UserPlus,
   Loader2,
   Eye,
   AlertTriangle,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
-import { ORGANIZATION_TYPE_CONFIG } from "@/lib/constants";
 import { CLIENT_STAGES, LEAD_STAGES } from "@/lib/constants/stages";
-import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
+import { startOfMonthRomeISO } from "@/lib/date-utils";
 import { toast } from "sonner";
 import type { Organization, OrganizationType } from "@/types";
 
@@ -47,21 +36,11 @@ interface StudioRow {
   scontrinoMedio: number | null;
 }
 
-interface ChartPoint {
-  giorno: string;
-  lead: number;
-}
-
 interface AlertItem {
   orgId: string;
   orgName: string;
   message: string;
 }
-
-const MONTH_NAMES = [
-  "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-  "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
-];
 
 // ── Helpers ──
 
@@ -84,7 +63,6 @@ export default function AdminDashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [studios, setStudios] = useState<StudioRow[]>([]);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
 
@@ -95,63 +73,24 @@ export default function AdminDashboardPage() {
 
     const startOfMonth = startOfMonthRomeISO(now);
 
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(now.getDate() - 30);
-
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
 
     // Staff filter: limit queries to assigned orgs (belt-and-suspenders with RLS)
     const isStaffUser = role === "staff" && staffOrgIds.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const staffFilter = (q: any) =>
-      isStaffUser ? q.in("organization_id", staffOrgIds) : q;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const staffOrgFilter = (q: any) =>
       isStaffUser ? q.in("id", staffOrgIds) : q;
 
-    // ── Global queries (parallel) ──
-    const [
-      orgsRes,
-      chartClientsRes,
-    ] = await Promise.all([
-      staffOrgFilter(
-        supabase
-          .from("organizations")
-          .select("*")
-          .neq("type", "agency")
-          .order("name")
-      ),
-      staffFilter(
-        supabase
-          .from("clients")
-          .select("created_at")
-          .gte("created_at", thirtyDaysAgo.toISOString())
-          .order("created_at", { ascending: true })
-      ),
-    ]);
-
-    // ── Chart data (last 30 days — Rome TZ) ──
-    const chartMap = new Map<string, number>();
-    for (let i = 30; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      chartMap.set(toRomeDateStr(d), 0);
-    }
-    for (const row of chartClientsRes.data ?? []) {
-      const key = toRomeDateStr((row as { created_at: string }).created_at);
-      chartMap.set(key, (chartMap.get(key) ?? 0) + 1);
-    }
-    const points: ChartPoint[] = [];
-    for (const [dateStr, count] of chartMap) {
-      const day = parseInt(dateStr.slice(8, 10));
-      const monthIdx = parseInt(dateStr.slice(5, 7)) - 1;
-      points.push({
-        giorno: `${day} ${MONTH_NAMES[monthIdx]}`,
-        lead: count,
-      });
-    }
-    setChartData(points);
+    // ── Global queries ──
+    const { data: orgsData } = await staffOrgFilter(
+      supabase
+        .from("organizations")
+        .select("*")
+        .neq("type", "agency")
+        .order("name")
+    );
+    const orgsRes = { data: orgsData };
 
     // ── Per-studio stats ──
     const allOrgs = (orgsRes.data ?? []) as Organization[];
@@ -359,17 +298,12 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {studios.map((s) => {
-                    const typeCfg =
-                      ORGANIZATION_TYPE_CONFIG[s.type];
-
-                    return (
+                  {studios.map((s) => (
                       <tr
                         key={s.id}
                         className="border-b border-border last:border-b-0 hover:bg-muted transition-colors"
                       >
-                        <td className="px-3 py-2.5 text-[16px]">
-                          <div className="flex items-center gap-2">
+                        <td className="px-3 py-2.5 text-left text-[16px]">
                             {canImpersonate && s.status === "active" ? (
                               <button
                                 className="flex items-center gap-1.5 font-medium text-primary hover:underline"
@@ -386,14 +320,6 @@ export default function AdminDashboardPage() {
                                 {s.name}
                               </span>
                             )}
-                            {typeCfg && (
-                              <span
-                                className={`hidden whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex ${typeCfg.color}`}
-                              >
-                                {typeCfg.label}
-                              </span>
-                            )}
-                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground">
                           {fmtEuro(s.spendMonth)}
@@ -417,8 +343,7 @@ export default function AdminDashboardPage() {
                           {s.scontrinoMedio != null ? fmtEuro(s.scontrinoMedio) : "—"}
                         </td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -426,69 +351,7 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ══ SEZIONE 2 — Grafico Lead ultimi 30 giorni ══ */}
-      <Card className="bg-card shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold text-foreground">
-            Lead Generati
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Ultimi 30 giorni — tutti gli studi
-          </p>
-        </CardHeader>
-        <CardContent>
-          {chartData.every((d) => d.lead === 0) ? (
-            <div className="flex h-[280px] items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <UserPlus className="mx-auto h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-2">Nessun lead negli ultimi 30 giorni</p>
-              </div>
-            </div>
-          ) : (
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="var(--border)"
-                  />
-                  <XAxis
-                    dataKey="giorno"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    axisLine={{ stroke: "var(--border)" }}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                    axisLine={{ stroke: "var(--border)" }}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                      backgroundColor: "var(--card)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="lead"
-                    stroke="var(--primary)"
-                    strokeWidth={2}
-                    dot={{ fill: "var(--primary)", r: 3 }}
-                    activeDot={{ r: 5, fill: "var(--primary)" }}
-                    name="Lead"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ══ SEZIONE 3 — Alert ══ */}
+      {/* ══ SEZIONE 2 — Alert ══ */}
       {alerts.length > 0 && (
         <Card className="bg-card shadow-sm">
           <CardHeader>

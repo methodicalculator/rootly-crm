@@ -262,31 +262,16 @@ export function OrganizationFormDialog({
           </div>
 
           {/* Meta Integration */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="meta_page_id">Facebook Page ID</Label>
-              <Input
-                id="meta_page_id"
-                placeholder="es: 123456789012345"
-                {...form.register("meta_page_id")}
-              />
-              <p className="text-xs text-muted-foreground">
-                Necessario per il routing automatico dei lead da Meta Ads.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="meta_ad_account_id">Meta Ad Account ID</Label>
-              <Input
-                id="meta_ad_account_id"
-                placeholder="Solo numeri"
-                {...form.register("meta_ad_account_id")}
-              />
-              {form.formState.errors.meta_ad_account_id && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.meta_ad_account_id.message}
-                </p>
-              )}
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta_page_id">Facebook Page ID</Label>
+            <Input
+              id="meta_page_id"
+              placeholder="es: 123456789012345"
+              {...form.register("meta_page_id")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Necessario per il routing automatico con Zapier e Make
+            </p>
           </div>
 
           {/* Budget + Status */}

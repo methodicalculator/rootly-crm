@@ -41,6 +41,7 @@ import {
   ORGANIZATION_STATUS_CONFIG,
   ORGANIZATION_TYPE_CONFIG,
 } from "@/lib/constants";
+import { CLIENT_STAGES } from "@/lib/constants/stages";
 import { startOfMonthRomeISO } from "@/lib/date-utils";
 import { OrganizationFormDialog } from "@/components/admin/organization-form-dialog";
 import { toast } from "sonner";
@@ -127,7 +128,8 @@ export default function GestioneStudiPage() {
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
-            .eq("organization_id", org.id),
+            .eq("organization_id", org.id)
+            .in("sales_stage", CLIENT_STAGES),
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
@@ -387,9 +389,9 @@ export default function GestioneStudiPage() {
                               {statusCfg.label}
                             </span>
                           )}
-                          {!org.meta_ad_account_id && (
+                          {!org.meta_page_id && (
                             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                              Ad Account mancante
+                              Page ID mancante
                             </span>
                           )}
                         </div>
