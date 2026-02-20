@@ -9,9 +9,14 @@ export async function POST(request: NextRequest) {
   const endpoint = "/api/webhooks/make/metrics";
   let body: unknown;
 
+  // DEBUG: log query params
+  const queryParams = Object.fromEntries(request.nextUrl.searchParams.entries());
+  console.log("[MAKE-METRICS] Query params:", JSON.stringify(queryParams));
+
   try {
     body = await request.json();
   } catch {
+    console.log("[MAKE-METRICS] Failed to parse JSON body");
     const res = { success: false, error: "Invalid JSON body" };
     await logWebhook({
       apiKeyId: null,
@@ -26,9 +31,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(res, { status: 400 });
   }
 
+  // DEBUG: log raw body
+  console.log("[MAKE-METRICS] Raw body:", JSON.stringify(body));
+
   // Validate payload
   const parsed = makeMetricsSchema.safeParse(body);
   if (!parsed.success) {
+    // DEBUG: log full zod error
+    console.log("[MAKE-METRICS] Zod validation FAILED");
+    console.log("[MAKE-METRICS] Zod issues:", JSON.stringify(parsed.error.issues, null, 2));
+
     const errorMessage = parsed.error.issues
       .map((e) => `${e.path.join(".")}: ${e.message}`)
       .join(", ");
