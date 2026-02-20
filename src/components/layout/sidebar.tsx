@@ -41,22 +41,16 @@ export function Sidebar() {
   const isStaff = role === "staff";
 
   // Determine which nav items to show based on role
-  const showOwnerNav = role === "owner" || role === "super_admin";
-  const showAdminSeparator = role === "super_admin";
-
-  // Staff sees only STAFF_NAV_ITEMS, no owner items
-  const ownerItems = NAV_ITEMS;
+  const showOwnerNav = role === "owner";
 
   const adminItems =
-    role === "admin"
+    role === "admin" || role === "super_admin"
       ? ADMIN_NAV_ITEMS
-      : role === "super_admin"
-        ? ADMIN_NAV_ITEMS
-        : [];
+      : [];
 
   const logoHref = isStaff
     ? "/staff/studi"
-    : role === "admin"
+    : role === "admin" || role === "super_admin"
       ? "/admin/dashboard-aggregata"
       : "/dashboard";
 
@@ -99,9 +93,9 @@ export function Sidebar() {
               );
             })}
 
-          {/* Owner / super_admin: standard nav items */}
+          {/* Owner: standard nav items */}
           {showOwnerNav &&
-            ownerItems.map((item) => {
+            NAV_ITEMS.map((item) => {
               const Icon = iconMap[item.icon];
               const isActive =
                 pathname === item.href ||
@@ -127,17 +121,6 @@ export function Sidebar() {
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
-              {showAdminSeparator && (
-                <>
-                  <div className="my-4">
-                    <div className="h-px bg-border" />
-                  </div>
-                  <span className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Amministrazione
-                  </span>
-                </>
-              )}
-
               {adminItems.map((item) => {
                 const Icon = iconMap[item.icon];
                 const isActive =
