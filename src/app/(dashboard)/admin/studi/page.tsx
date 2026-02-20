@@ -437,7 +437,7 @@ export default function GestioneStudiPage() {
                             size="sm"
                             onClick={() =>
                               router.push(
-                                `/dashboard?viewOnly=true&orgId=${org.id}`
+                                `/staff/studio/${org.id}`
                               )
                             }
                           >

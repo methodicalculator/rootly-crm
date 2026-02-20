@@ -156,9 +156,9 @@ export default function AnalyticsPage() {
 
     return [
       { name: "Nuovi Lead", value: newLeads },
-      { name: "In Lavorazione", value: inLavorazione },
+      { name: "Appuntamento Fissato", value: inLavorazione },
       { name: "Da Fidelizzare", value: daFidelizzare },
-      { name: "Acquisiti", value: acquisiti },
+      { name: "Percorsi", value: acquisiti },
       { name: "Persi", value: persi },
     ];
   }, [filteredClients]);

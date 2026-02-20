@@ -19,9 +19,9 @@ const tabs = [
   { key: "tutti", label: "Tutti" },
   { key: "new", label: "Nuovi Lead" },
   { key: "contacted", label: "Non Risponde" },
-  { key: "in_lavorazione", label: "In Lavorazione" },
+  { key: "in_lavorazione", label: "Appuntamento Fissato" },
   { key: "appointment_completed", label: "Da Fidelizzare" },
-  { key: "converted", label: "Acquisiti" },
+  { key: "converted", label: "Percorsi" },
   { key: "lost", label: "Persi" },
 ] as const;
 

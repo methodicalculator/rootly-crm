@@ -8,6 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Loader2, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -59,6 +67,9 @@ export function SalesPipelineSelect({
   const [updating, setUpdating] = useState(false);
   const [showLostReason, setShowLostReason] = useState(false);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
+  const [showConvertedDialog, setShowConvertedDialog] = useState(false);
+  const [convertedImporto, setConvertedImporto] = useState("");
+  const [convertedSessions, setConvertedSessions] = useState("");
   const [revenueValue, setRevenueValue] = useState(
     currentRevenue != null ? String(currentRevenue) : ""
   );
@@ -72,7 +83,8 @@ export function SalesPipelineSelect({
   async function updateStage(
     newStage: SalesStage,
     lostReason?: LostReason,
-    appointmentDate?: string
+    appointmentDate?: string,
+    extraFields?: { revenue?: number | null; sessions_count?: number | null }
   ) {
     setUpdating(true);
     try {
@@ -101,6 +113,13 @@ export function SalesPipelineSelect({
       // Azzera revenue per stage senza incasso
       if (!REVENUE_STAGES.includes(newStage)) {
         updates.revenue = null;
+        updates.sessions_count = null;
+      }
+
+      // Apply extra fields (from converted dialog)
+      if (extraFields) {
+        if (extraFields.revenue !== undefined) updates.revenue = extraFields.revenue;
+        if (extraFields.sessions_count !== undefined) updates.sessions_count = extraFields.sessions_count;
       }
 
       // If leaving "appointment_scheduled", delete associated appointment
@@ -143,11 +162,22 @@ export function SalesPipelineSelect({
     if (stage === "appointment_scheduled") {
       setShowAppointmentDialog(true);
       setShowLostReason(false);
+      setShowConvertedDialog(false);
+      return;
+    }
+
+    if (stage === "converted") {
+      setShowConvertedDialog(true);
+      setConvertedImporto("");
+      setConvertedSessions("");
+      setShowLostReason(false);
+      setShowAppointmentDialog(false);
       return;
     }
 
     setShowLostReason(false);
     setShowAppointmentDialog(false);
+    setShowConvertedDialog(false);
     updateStage(stage);
   }
 
@@ -158,6 +188,16 @@ export function SalesPipelineSelect({
 
   function handleLostReasonSelect(value: string) {
     updateStage("lost", value as LostReason);
+  }
+
+  function handleConvertedConfirm() {
+    const importo = convertedImporto ? parseInt(convertedImporto, 10) : null;
+    const sessions = convertedSessions ? parseInt(convertedSessions, 10) : null;
+    setShowConvertedDialog(false);
+    updateStage("converted", undefined, undefined, {
+      revenue: importo,
+      sessions_count: sessions,
+    });
   }
 
   const stageCfg = SALES_STAGE_CONFIG[currentStage];
@@ -268,6 +308,62 @@ export function SalesPipelineSelect({
         clientName={clientName}
         onSuccess={handleAppointmentSaved}
       />
+
+      <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Percorso Acquistato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                Importo percorso
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  &euro;
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={convertedImporto}
+                  placeholder="0"
+                  className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  onChange={(e) =>
+                    setConvertedImporto(e.target.value.replace(/\D/g, ""))
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                Numero di sedute
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={convertedSessions}
+                placeholder="0"
+                className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                onChange={(e) =>
+                  setConvertedSessions(e.target.value.replace(/\D/g, ""))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowConvertedDialog(false)}
+            >
+              Annulla
+            </Button>
+            <Button onClick={handleConvertedConfirm}>
+              Conferma
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

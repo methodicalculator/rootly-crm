@@ -73,6 +73,14 @@ function formatTriggerLabel(from: Date, to: Date): string {
 
 export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const [tempRange, setTempRange] = React.useState<DateRange | undefined>(undefined);
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setTempRange({ from: undefined, to: undefined });
+    }
+    setOpen(nextOpen);
+  }
 
   function handlePreset(preset: (typeof presets)[number]) {
     onChange(preset.range());
@@ -81,6 +89,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
 
   function handleCalendarSelect(range: DateRange | undefined) {
     if (!range?.from) return;
+    setTempRange(range);
     if (range.from && range.to) {
       onChange({ from: range.from, to: range.to });
       setOpen(false);
@@ -88,7 +97,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" className="justify-start text-left font-normal">
           <CalendarDays className="mr-2 h-4 w-4" />
@@ -114,7 +123,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
           {/* Calendar */}
           <Calendar
             mode="range"
-            selected={{ from, to }}
+            selected={tempRange}
             onSelect={handleCalendarSelect}
             numberOfMonths={2}
             locale={it}

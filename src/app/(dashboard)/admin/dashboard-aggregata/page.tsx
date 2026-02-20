@@ -8,10 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Users,
   UserPlus,
-  Target,
-  DollarSign,
   Loader2,
   Eye,
   AlertTriangle,
@@ -41,10 +38,11 @@ interface StudioRow {
   status: string;
   totalClients: number;
   leadsMonth: number;
-  activeCampaigns: number;
   spendMonth: number;
-  leadsFromCampaigns: number;
-  cpa: number | null;
+  cpl: number | null;
+  incasso: number;
+  sessionsCount: number;
+  scontrinoMedio: number | null;
 }
 
 interface ChartPoint {
@@ -63,6 +61,12 @@ const MONTH_NAMES = [
   "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
 ];
 
+// ── Helpers ──
+
+function fmtEuro(n: number): string {
+  return `\u20AC${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // ── Page ──
 
 export default function AdminDashboardPage() {
@@ -77,10 +81,6 @@ export default function AdminDashboardPage() {
   } = useOrganization();
 
   const [loading, setLoading] = useState(true);
-  const [totalClients, setTotalClients] = useState(0);
-  const [leadsMonth, setLeadsMonth] = useState(0);
-  const [activeCampaigns, setActiveCampaigns] = useState(0);
-  const [spendMonth, setSpendMonth] = useState(0);
   const [studios, setStudios] = useState<StudioRow[]>([]);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -108,31 +108,11 @@ export default function AdminDashboardPage() {
     const staffOrgFilter = (q: any) =>
       isStaffUser ? q.in("id", staffOrgIds) : q;
 
-    // ── KPI queries (all orgs, parallel) ──
+    // ── Global queries (parallel) ──
     const [
-      clientsRes,
-      leadsRes,
-      campaignsRes,
       orgsRes,
       chartClientsRes,
     ] = await Promise.all([
-      staffFilter(
-        supabase
-          .from("clients")
-          .select("id", { count: "exact", head: true })
-      ),
-      staffFilter(
-        supabase
-          .from("clients")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", startOfMonth)
-      ),
-      staffFilter(
-        supabase
-          .from("campaigns")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "attiva")
-      ),
       staffOrgFilter(
         supabase
           .from("organizations")
@@ -148,10 +128,6 @@ export default function AdminDashboardPage() {
           .order("created_at", { ascending: true })
       ),
     ]);
-
-    setTotalClients(clientsRes.count ?? 0);
-    setLeadsMonth(leadsRes.count ?? 0);
-    setActiveCampaigns(campaignsRes.count ?? 0);
 
     // ── Chart data (last 30 days — Rome TZ) ──
     const chartMap = new Map<string, number>();
@@ -177,12 +153,11 @@ export default function AdminDashboardPage() {
 
     // ── Per-studio stats ──
     const allOrgs = (orgsRes.data ?? []) as Organization[];
-    let totalSpend = 0;
     const alertList: AlertItem[] = [];
 
     const studioRows = await Promise.all(
       allOrgs.map(async (org) => {
-        const [orgClientsRes, orgLeadsRes, orgCampaignsRes] =
+        const [orgClientsRes, orgLeadsRes, orgRevenueRes, orgCampaignsRes] =
           await Promise.all([
             supabase
               .from("clients")
@@ -194,11 +169,29 @@ export default function AdminDashboardPage() {
               .eq("organization_id", org.id)
               .gte("created_at", startOfMonth),
             supabase
+              .from("clients")
+              .select("revenue, sessions_count")
+              .eq("organization_id", org.id)
+              .not("revenue", "is", null),
+            supabase
               .from("campaigns")
               .select("id")
               .eq("organization_id", org.id)
               .eq("status", "attiva"),
           ]);
+
+        // Incasso & sessions totali
+        let incasso = 0;
+        let sessionsCount = 0;
+        for (const c of orgRevenueRes.data ?? []) {
+          incasso += Number(c.revenue) || 0;
+          sessionsCount += Number(c.sessions_count) || 0;
+        }
+
+        const scontrinoMedio =
+          sessionsCount > 0
+            ? Math.round((incasso / sessionsCount) * 100) / 100
+            : null;
 
         // Campaign metrics for this org's active campaigns
         const campaignIds = (orgCampaignsRes.data ?? []).map(
@@ -206,34 +199,31 @@ export default function AdminDashboardPage() {
         );
 
         let orgSpend = 0;
-        let orgCampaignLeads = 0;
 
         if (campaignIds.length > 0) {
           const { data: metricsData } = await supabase
             .from("campaign_metrics")
-            .select("spend, leads")
+            .select("spend")
             .in("campaign_id", campaignIds)
             .gte("date", startOfMonth);
 
           for (const m of metricsData ?? []) {
             orgSpend += Number(m.spend) || 0;
-            orgCampaignLeads += Number(m.leads) || 0;
           }
         }
 
-        totalSpend += orgSpend;
-
-        const cpa =
-          orgCampaignLeads > 0
-            ? Math.round((orgSpend / orgCampaignLeads) * 100) / 100
+        const orgLeadsMonth = orgLeadsRes.count ?? 0;
+        const cpl =
+          orgLeadsMonth > 0
+            ? Math.round((orgSpend / orgLeadsMonth) * 100) / 100
             : null;
 
         // Alerts
-        if (cpa !== null && cpa > 15) {
+        if (cpl !== null && cpl > 15) {
           alertList.push({
             orgId: org.id,
             orgName: org.name,
-            message: `CPA alto: €${cpa.toFixed(2)}`,
+            message: `CPL alto: ${fmtEuro(cpl)}`,
           });
         }
 
@@ -258,11 +248,12 @@ export default function AdminDashboardPage() {
           type: org.type as OrganizationType,
           status: org.status,
           totalClients: orgClientsRes.count ?? 0,
-          leadsMonth: orgLeadsRes.count ?? 0,
-          activeCampaigns: campaignIds.length,
+          leadsMonth: orgLeadsMonth,
           spendMonth: orgSpend,
-          leadsFromCampaigns: orgCampaignLeads,
-          cpa,
+          cpl,
+          incasso,
+          sessionsCount,
+          scontrinoMedio,
         } satisfies StudioRow;
       })
     );
@@ -271,7 +262,6 @@ export default function AdminDashboardPage() {
     studioRows.sort((a, b) => b.leadsMonth - a.leadsMonth);
 
     setStudios(studioRows);
-    setSpendMonth(totalSpend);
     setAlerts(alertList);
     setLoading(false);
   }, [role, staffOrgIds]);
@@ -316,36 +306,7 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* ══ SEZIONE 1 — KPI Cards ══ */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Clienti Totali"
-          value={totalClients}
-          icon={<Users className="h-5 w-5 text-primary" />}
-          bg="bg-blue-50 dark:bg-blue-950/50"
-        />
-        <KpiCard
-          label="Lead Questo Mese"
-          value={leadsMonth}
-          icon={<UserPlus className="h-5 w-5 text-[#10B981]" />}
-          bg="bg-green-50 dark:bg-green-950/50"
-        />
-        <KpiCard
-          label="Campagne Attive"
-          value={activeCampaigns}
-          icon={<Target className="h-5 w-5 text-[#F59E0B]" />}
-          bg="bg-amber-50 dark:bg-amber-950/50"
-        />
-        <KpiCard
-          label="Spesa Mese"
-          value={`€${spendMonth.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
-          icon={<DollarSign className="h-5 w-5 text-[#8B5CF6]" />}
-          bg="bg-purple-50 dark:bg-purple-950/50"
-          isText
-        />
-      </div>
-
-      {/* ══ SEZIONE 2 — Performance per Studio ══ */}
+      {/* ══ SEZIONE 1 — Performance per Studio ══ */}
       <Card className="bg-card shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold text-foreground">
@@ -366,19 +327,22 @@ export default function AdminDashboardPage() {
                       Studio
                     </th>
                     <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                      Clienti
+                      Spesa Mese
                     </th>
                     <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
                       Lead Mese
                     </th>
-                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
-                      Campagne
+                    <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
+                      CPL
                     </th>
                     <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
-                      Spesa Mese
+                      Clienti
+                    </th>
+                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
+                      Incasso
                     </th>
                     <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground lg:table-cell">
-                      CPA
+                      Scontrino Medio
                     </th>
                   </tr>
                 </thead>
@@ -392,7 +356,7 @@ export default function AdminDashboardPage() {
                         key={s.id}
                         className="border-b border-border last:border-b-0 hover:bg-muted transition-colors"
                       >
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5 text-[16px]">
                           <div className="flex items-center gap-2">
                             {canImpersonate && s.status === "active" ? (
                               <button
@@ -419,20 +383,23 @@ export default function AdminDashboardPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
-                          {s.totalClients}
+                        <td className="px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground">
+                          {fmtEuro(s.spendMonth)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                        <td className="px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground">
                           {s.leadsMonth}
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right tabular-nums text-foreground md:table-cell">
-                          {s.activeCampaigns}
+                        <td className="px-3 py-2.5 text-right text-[16px]">
+                          <CplBadge cpl={s.cpl} />
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right tabular-nums text-foreground md:table-cell">
-                          €{s.spendMonth.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                          {s.totalClients}
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right lg:table-cell">
-                          <CpaBadge cpa={s.cpa} />
+                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                          {fmtEuro(s.incasso)}
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground lg:table-cell">
+                          {s.scontrinoMedio != null ? fmtEuro(s.scontrinoMedio) : "—"}
                         </td>
                       </tr>
                     );
@@ -444,7 +411,7 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ══ SEZIONE 3 — Grafico Lead ultimi 30 giorni ══ */}
+      {/* ══ SEZIONE 2 — Grafico Lead ultimi 30 giorni ══ */}
       <Card className="bg-card shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold text-foreground">
@@ -506,7 +473,7 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ══ SEZIONE 4 — Alert ══ */}
+      {/* ══ SEZIONE 3 — Alert ══ */}
       {alerts.length > 0 && (
         <Card className="bg-card shadow-sm">
           <CardHeader>
@@ -553,40 +520,8 @@ export default function AdminDashboardPage() {
 
 // ── Sub-components ──
 
-function KpiCard({
-  label,
-  value,
-  icon,
-  bg,
-  isText = false,
-}: {
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  bg: string;
-  isText?: boolean;
-}) {
-  return (
-    <Card className="bg-card shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {label}
-        </CardTitle>
-        <div className={`rounded-lg p-2 ${bg}`}>{icon}</div>
-      </CardHeader>
-      <CardContent>
-        <div
-          className={`font-bold leading-tight text-foreground ${isText ? "text-2xl" : "text-[32px]"}`}
-        >
-          {value}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function CpaBadge({ cpa }: { cpa: number | null }) {
-  if (cpa === null) {
+function CplBadge({ cpl }: { cpl: number | null }) {
+  if (cpl === null) {
     return (
       <span className="text-xs text-muted-foreground">—</span>
     );
@@ -595,11 +530,11 @@ function CpaBadge({ cpa }: { cpa: number | null }) {
   let color: string;
   let label: string;
 
-  if (cpa < 10) {
+  if (cpl < 10) {
     color =
       "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
     label = "Ottimo";
-  } else if (cpa <= 15) {
+  } else if (cpl <= 15) {
     color =
       "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
     label = "Buono";
@@ -611,7 +546,7 @@ function CpaBadge({ cpa }: { cpa: number | null }) {
   return (
     <span className="flex items-center justify-end gap-1.5">
       <span className="tabular-nums text-foreground">
-        €{cpa.toFixed(2)}
+        {`\u20AC${cpl.toFixed(2)}`}
       </span>
       <span
         className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${color}`}

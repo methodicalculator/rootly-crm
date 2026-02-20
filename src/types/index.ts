@@ -123,6 +123,7 @@ export interface Client {
   appointment_date: string | null;
   appointment_completed_at: string | null;
   revenue: number | null;
+  sessions_count: number | null;
   lost_reason: LostReason | null;
   created_by: string | null;
   created_at: string;

@@ -10,12 +10,15 @@ import { createClient } from "@/lib/supabase/client";
 import { StudioDashboardTab } from "@/components/staff/studio-dashboard-tab";
 import { StudioCampaignsTab } from "@/components/staff/studio-campaigns-tab";
 import { StudioAnalyticsTab } from "@/components/staff/studio-analytics-tab";
+import { StudioReportTab } from "@/components/staff/studio-report-tab";
 
 export default function StaffStudioPage() {
   const params = useParams();
   const router = useRouter();
   const organizationId = params.organizationId as string;
-  const { staffOrgIds, loading: orgLoading } = useOrganization();
+  const { staffOrgIds, role, loading: orgLoading } = useOrganization();
+
+  const isPrivileged = role === "admin" || role === "super_admin";
 
   const [orgName, setOrgName] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
@@ -23,13 +26,15 @@ export default function StaffStudioPage() {
   useEffect(() => {
     if (orgLoading) return;
 
-    // Access control: staff can only see assigned orgs
-    if (!staffOrgIds.includes(organizationId)) {
+    // Access control: admin/super_admin can view any org; staff only assigned orgs
+    if (isPrivileged) {
+      setAuthorized(true);
+    } else if (staffOrgIds.includes(organizationId)) {
+      setAuthorized(true);
+    } else {
       router.replace("/staff/studi");
       return;
     }
-
-    setAuthorized(true);
 
     // Fetch org name
     async function fetchOrgName() {
@@ -43,7 +48,7 @@ export default function StaffStudioPage() {
     }
 
     fetchOrgName();
-  }, [organizationId, staffOrgIds, orgLoading, router]);
+  }, [organizationId, staffOrgIds, orgLoading, router, isPrivileged]);
 
   if (orgLoading || authorized === null) {
     return (
@@ -53,12 +58,14 @@ export default function StaffStudioPage() {
     );
   }
 
+  const backHref = isPrivileged ? "/admin/studi" : "/staff/studi";
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <Link
-          href="/staff/studi"
+          href={backHref}
           className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -75,6 +82,7 @@ export default function StaffStudioPage() {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="campaigns">Campagne Marketing</TabsTrigger>
           <TabsTrigger value="analytics">Analisi Lead</TabsTrigger>
+          <TabsTrigger value="report">Report</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">
@@ -87,6 +95,10 @@ export default function StaffStudioPage() {
 
         <TabsContent value="analytics" className="mt-6">
           <StudioAnalyticsTab organizationId={organizationId} />
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-6">
+          <StudioReportTab organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </div>

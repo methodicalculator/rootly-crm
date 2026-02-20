@@ -171,6 +171,7 @@ CREATE TABLE clients (
   appointment_completed_at TIMESTAMPTZ,
   conversion_amount DECIMAL(12,2),
   lost_reason TEXT, -- 'disdetta','non_presentato','non_interessato','contatto_falso'
+  sessions_count INTEGER, -- numero sedute per percorso acquistato
   created_by UUID REFERENCES user_profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
