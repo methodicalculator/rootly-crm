@@ -7,16 +7,14 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const ip = getClientIp(request);
   const endpoint = "/api/webhooks/make/metrics";
-  let body: unknown;
+  let rawBody: unknown;
 
-  // DEBUG: log query params
+  // Merge query params + JSON body (meta_page_id may come as query param)
   const queryParams = Object.fromEntries(request.nextUrl.searchParams.entries());
-  console.log("[MAKE-METRICS] Query params:", JSON.stringify(queryParams));
 
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
-    console.log("[MAKE-METRICS] Failed to parse JSON body");
     const res = { success: false, error: "Invalid JSON body" };
     await logWebhook({
       apiKeyId: null,
@@ -31,16 +29,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(res, { status: 400 });
   }
 
-  // DEBUG: log raw body
-  console.log("[MAKE-METRICS] Raw body:", JSON.stringify(body));
+  const merged = { ...(typeof rawBody === "object" && rawBody !== null ? rawBody : {}), ...queryParams };
 
   // Validate payload
-  const parsed = makeMetricsSchema.safeParse(body);
+  const parsed = makeMetricsSchema.safeParse(merged);
   if (!parsed.success) {
-    // DEBUG: log full zod error
-    console.log("[MAKE-METRICS] Zod validation FAILED");
-    console.log("[MAKE-METRICS] Zod issues:", JSON.stringify(parsed.error.issues, null, 2));
-
     const errorMessage = parsed.error.issues
       .map((e) => `${e.path.join(".")}: ${e.message}`)
       .join(", ");
@@ -49,7 +42,7 @@ export async function POST(request: NextRequest) {
       apiKeyId: null,
       endpoint,
       statusCode: 400,
-      requestBody: body,
+      requestBody: merged,
       responseBody: res,
       errorMessage,
       ipAddress: ip,
@@ -74,7 +67,7 @@ export async function POST(request: NextRequest) {
       apiKeyId: null,
       endpoint,
       statusCode: 404,
-      requestBody: body,
+      requestBody: merged,
       responseBody: res,
       errorMessage: "Organization not found for this meta_page_id",
       ipAddress: ip,
@@ -89,7 +82,7 @@ export async function POST(request: NextRequest) {
       apiKeyId: null,
       endpoint,
       statusCode: 403,
-      requestBody: body,
+      requestBody: merged,
       responseBody: res,
       errorMessage: "Organization is not active",
       ipAddress: ip,
@@ -130,7 +123,7 @@ export async function POST(request: NextRequest) {
         apiKeyId: null,
         endpoint,
         statusCode: 500,
-        requestBody: body,
+        requestBody: merged,
         responseBody: res,
         errorMessage: createError?.message ?? "Unknown error",
         ipAddress: ip,
@@ -169,7 +162,7 @@ export async function POST(request: NextRequest) {
       apiKeyId: null,
       endpoint,
       statusCode: 500,
-      requestBody: body,
+      requestBody: merged,
       responseBody: res,
       errorMessage: upsertError.message,
       ipAddress: ip,
@@ -183,7 +176,7 @@ export async function POST(request: NextRequest) {
     apiKeyId: null,
     endpoint,
     statusCode: 200,
-    requestBody: body,
+    requestBody: merged,
     responseBody: res,
     ipAddress: ip,
     durationMs: Date.now() - startTime,
