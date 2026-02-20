@@ -77,7 +77,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      setTempRange({ from: undefined, to: undefined });
+      setTempRange(undefined);
     }
     setOpen(nextOpen);
   }
@@ -128,6 +128,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
             numberOfMonths={2}
             locale={it}
             weekStartsOn={1}
+            min={1}
           />
         </div>
       </PopoverContent>
