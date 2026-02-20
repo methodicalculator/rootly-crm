@@ -269,7 +269,6 @@ function DashboardContent() {
         .update({
           sales_stage: "contacted",
           contacted_at: now,
-          stage_changed_at: now,
         })
         .eq("id", clientId);
 

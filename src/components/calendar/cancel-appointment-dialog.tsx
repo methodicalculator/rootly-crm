@@ -30,7 +30,6 @@ import {
   type AppointmentFormValues,
 } from "@/lib/validations";
 import { toRomeDateStr, toRomeTimestamp } from "@/lib/date-utils";
-import { createAppointmentRecord } from "@/lib/supabase/queries";
 import {
   APPOINTMENT_TIME_SLOTS,
   APPOINTMENT_DURATION_OPTIONS,
@@ -89,46 +88,53 @@ export function CancelAppointmentDialog({
     try {
       const supabase = createClient();
 
-      // Delete old appointment
-      const { error: delErr } = await supabase
-        .from("appointments")
-        .delete()
-        .eq("id", appointment.id);
-
-      if (delErr) {
-        toast.error("Errore nell'eliminazione dell'appuntamento", {
-          description: delErr.message,
-        });
-        return;
-      }
-
-      // Create new appointment
-      const clientName = appointment.clients
-        ? `${appointment.clients.nome} ${appointment.clients.cognome}`
-        : appointment.title;
-
       const dateStr = toRomeDateStr(values.date);
       const startISO = toRomeTimestamp(dateStr, values.time);
       const endISO = addMinutes(new Date(startISO), values.duration).toISOString();
 
-      const { error: createErr } = await createAppointmentRecord(
-        {
-          client_id: appointment.client_id!,
-          title: `Appuntamento - ${clientName}`,
+      console.log("[RESCHEDULE] Updating appointment", appointment.id, {
+        start_time: startISO,
+        end_time: endISO,
+        table: "appointments",
+      });
+
+      // UPDATE existing appointment (no delete+insert to avoid side effects)
+      const { error: updErr } = await supabase
+        .from("appointments")
+        .update({
           start_time: startISO,
           end_time: endISO,
           notes: values.notes || null,
-        },
-        appointment.organization_id
-      );
+        })
+        .eq("id", appointment.id);
 
-      if (createErr) {
-        toast.error("Errore nella creazione del nuovo appuntamento", {
-          description: createErr.message,
+      if (updErr) {
+        console.error("[RESCHEDULE] appointments UPDATE failed:", updErr.message);
+        toast.error("Errore nell'aggiornamento dell'appuntamento", {
+          description: updErr.message,
         });
         return;
       }
 
+      // Sync client's appointment_date
+      if (appointment.client_id) {
+        console.log("[RESCHEDULE] Syncing client appointment_date", {
+          client_id: appointment.client_id,
+          appointment_date: startISO,
+          table: "clients",
+        });
+
+        const { error: clientErr } = await supabase
+          .from("clients")
+          .update({ appointment_date: startISO })
+          .eq("id", appointment.client_id);
+
+        if (clientErr) {
+          console.error("[RESCHEDULE] clients UPDATE failed:", clientErr.message);
+        }
+      }
+
+      console.log("[RESCHEDULE] Done — only appointments and clients.appointment_date touched");
       toast.success("Appuntamento riprogrammato!");
       handleOpenChange(false);
       onComplete();
@@ -143,6 +149,8 @@ export function CancelAppointmentDialog({
     try {
       const supabase = createClient();
 
+      console.log("[MARK-LOST] Deleting appointment", appointment.id, { table: "appointments" });
+
       // Delete appointment
       const { error: delErr } = await supabase
         .from("appointments")
@@ -150,11 +158,19 @@ export function CancelAppointmentDialog({
         .eq("id", appointment.id);
 
       if (delErr) {
+        console.error("[MARK-LOST] appointments DELETE failed:", delErr.message);
         toast.error("Errore nell'eliminazione dell'appuntamento", {
           description: delErr.message,
         });
         return;
       }
+
+      console.log("[MARK-LOST] Updating client as lost", {
+        client_id: appointment.client_id,
+        sales_stage: "lost",
+        lost_reason: lostReason,
+        table: "clients",
+      });
 
       // Update client as lost
       const { error: updErr } = await supabase
@@ -162,7 +178,6 @@ export function CancelAppointmentDialog({
         .update({
           sales_stage: "lost",
           lost_reason: lostReason,
-          stage_changed_at: new Date().toISOString(),
         })
         .eq("id", appointment.client_id!);
 

@@ -84,7 +84,6 @@ export function SalesPipelineSelect({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updates: Record<string, any> = {
         sales_stage: newStage,
-        stage_changed_at: now,
       };
 
       if (newStage === "contacted") {
