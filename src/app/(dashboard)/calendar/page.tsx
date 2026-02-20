@@ -9,6 +9,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { getAppointmentsWithClients } from "@/lib/supabase/queries";
 import { CalendarToolbar } from "@/components/calendar/calendar-toolbar";
 import { AppointmentDetailDialog } from "@/components/calendar/appointment-detail-dialog";
+import { CancelAppointmentDialog } from "@/components/calendar/cancel-appointment-dialog";
 import type { AppointmentWithClient } from "@/types";
 
 const locales = { it };
@@ -37,6 +38,8 @@ export default function CalendarPage() {
   const [date, setDate] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithClient | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [cancelFlowOpen, setCancelFlowOpen] = useState(false);
+  const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentWithClient | null>(null);
   const calendarWrapperRef = useRef<HTMLDivElement>(null);
 
   // Scroll to 07:00 on mount
@@ -85,6 +88,17 @@ export default function CalendarPage() {
   function handleSelectEvent(event: CalendarEvent) {
     setSelectedAppointment(event.resource);
     setDetailOpen(true);
+  }
+
+  function handleCancelAppointment(appointment: AppointmentWithClient) {
+    setCancellingAppointment(appointment);
+    setCancelFlowOpen(true);
+  }
+
+  function handleCancelComplete() {
+    setCancelFlowOpen(false);
+    setCancellingAppointment(null);
+    fetchAppointments();
   }
 
   const messages = {
@@ -187,6 +201,14 @@ export default function CalendarPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         appointment={selectedAppointment}
+        onCancel={handleCancelAppointment}
+      />
+
+      <CancelAppointmentDialog
+        open={cancelFlowOpen}
+        onOpenChange={setCancelFlowOpen}
+        appointment={cancellingAppointment}
+        onComplete={handleCancelComplete}
       />
     </div>
   );

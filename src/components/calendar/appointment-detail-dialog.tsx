@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { APPOINTMENT_STATUS_CONFIG } from "@/lib/constants";
 import type { AppointmentWithClient, AppointmentStatus } from "@/types";
 
@@ -15,12 +16,14 @@ interface AppointmentDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   appointment: AppointmentWithClient | null;
+  onCancel?: (appointment: AppointmentWithClient) => void;
 }
 
 export function AppointmentDetailDialog({
   open,
   onOpenChange,
   appointment,
+  onCancel,
 }: AppointmentDetailDialogProps) {
   if (!appointment) return null;
 
@@ -88,6 +91,19 @@ export function AppointmentDetailDialog({
                 {appointment.notes}
               </p>
             </div>
+          )}
+
+          {onCancel && (
+            <Button
+              variant="destructive"
+              className="w-full mt-2"
+              onClick={() => {
+                onOpenChange(false);
+                onCancel(appointment);
+              }}
+            >
+              Cancella Appuntamento
+            </Button>
           )}
         </div>
       </DialogContent>

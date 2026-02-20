@@ -274,25 +274,25 @@ export default function AdminDashboardPage() {
                     <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">
                       Studio
                     </th>
-                    <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
+                    <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">
                       Spesa Mese
                     </th>
-                    <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
+                    <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">
                       Lead Mese
                     </th>
-                    <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
+                    <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">
                       CPL
                     </th>
-                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
+                    <th className="hidden px-3 py-2.5 text-center font-medium text-muted-foreground md:table-cell">
                       Lead
                     </th>
-                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
+                    <th className="hidden px-3 py-2.5 text-center font-medium text-muted-foreground md:table-cell">
                       Clienti
                     </th>
-                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground md:table-cell">
+                    <th className="hidden px-3 py-2.5 text-center font-medium text-muted-foreground md:table-cell">
                       Incasso
                     </th>
-                    <th className="hidden px-3 py-2.5 text-right font-medium text-muted-foreground lg:table-cell">
+                    <th className="hidden px-3 py-2.5 text-center font-medium text-muted-foreground lg:table-cell">
                       Scontrino Medio
                     </th>
                   </tr>
@@ -321,25 +321,25 @@ export default function AdminDashboardPage() {
                               </span>
                             )}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground">
+                        <td className="px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground">
                           {fmtEuro(s.spendMonth)}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground">
+                        <td className="px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground">
                           {s.leadsMonth}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-[16px]">
+                        <td className="px-3 py-2.5 text-center text-[16px]">
                           <CplBadge cpl={s.cpl} />
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                        <td className="hidden px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground md:table-cell">
                           {s.totalLeads}
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                        <td className="hidden px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground md:table-cell">
                           {s.totalClients}
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground md:table-cell">
+                        <td className="hidden px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground md:table-cell">
                           {fmtEuro(s.incasso)}
                         </td>
-                        <td className="hidden px-3 py-2.5 text-right text-[16px] tabular-nums text-foreground lg:table-cell">
+                        <td className="hidden px-3 py-2.5 text-center text-[16px] tabular-nums text-foreground lg:table-cell">
                           {s.scontrinoMedio != null ? fmtEuro(s.scontrinoMedio) : "—"}
                         </td>
                       </tr>
@@ -422,7 +422,7 @@ function CplBadge({ cpl }: { cpl: number | null }) {
   }
 
   return (
-    <span className="flex items-center justify-end gap-1.5">
+    <span className="flex items-center justify-center gap-1.5">
       <span className="tabular-nums text-foreground">
         {`\u20AC${cpl.toFixed(2)}`}
       </span>
