@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -22,6 +22,7 @@ export default function StaffStudioPage() {
 
   const [orgName, setOrgName] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const tabsListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (orgLoading) return;
@@ -49,6 +50,13 @@ export default function StaffStudioPage() {
 
     fetchOrgName();
   }, [organizationId, staffOrgIds, orgLoading, router, isPrivileged]);
+
+  // Reset tab scroll to left on mount
+  useEffect(() => {
+    if (tabsListRef.current) {
+      tabsListRef.current.scrollLeft = 0;
+    }
+  }, [authorized]);
 
   if (orgLoading || authorized === null) {
     return (
@@ -78,7 +86,10 @@ export default function StaffStudioPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="w-full overflow-x-auto scrollbar-hide">
+        <TabsList
+          ref={tabsListRef as React.RefObject<HTMLDivElement>}
+          className="w-full justify-start overflow-x-auto scrollbar-hide"
+        >
           <TabsTrigger value="dashboard" className="min-w-[100px]">Dashboard</TabsTrigger>
           <TabsTrigger value="analytics" className="min-w-[110px]">Analisi Lead</TabsTrigger>
           <TabsTrigger value="campaigns" className="min-w-[160px]">Campagne Marketing</TabsTrigger>

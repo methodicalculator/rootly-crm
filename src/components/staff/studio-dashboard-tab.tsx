@@ -207,6 +207,11 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
     setShowLostReason(false);
   }
 
+  function removeLeadAndClose(leadId: string) {
+    setLeadsToContact((prev) => prev.filter((l) => l.id !== leadId));
+    closeActionModal();
+  }
+
   async function handleNonRisponde() {
     if (!actionLead) return;
     setActionSaving(true);
@@ -218,8 +223,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         .eq("id", actionLead.id);
       if (error) { toast.error("Errore durante l'aggiornamento"); return; }
       toast.success("Lead segnato come Non Risponde");
-      closeActionModal();
-      await fetchLeadsToContact();
+      removeLeadAndClose(actionLead.id);
     } finally {
       setActionSaving(false);
     }
@@ -244,8 +248,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         .eq("id", actionLead.id);
       if (error) { toast.error("Errore durante l'aggiornamento"); return; }
       toast.success("Appuntamento fissato!");
-      closeActionModal();
-      await fetchLeadsToContact();
+      removeLeadAndClose(actionLead.id);
     } finally {
       setActionSaving(false);
     }
@@ -266,8 +269,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         .eq("id", actionLead.id);
       if (error) { toast.error("Errore durante l'aggiornamento"); return; }
       toast.success("Lead segnato come Perso");
-      closeActionModal();
-      await fetchLeadsToContact();
+      removeLeadAndClose(actionLead.id);
     } finally {
       setActionSaving(false);
     }
