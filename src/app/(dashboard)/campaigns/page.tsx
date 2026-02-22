@@ -12,15 +12,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns, getClients } from "@/lib/supabase/queries";
@@ -179,23 +171,6 @@ export default function CampaignsPage() {
     }
     return map;
   }, [leadClients]);
-
-  // ── Chart data for expanded campaign ──────────────────────────
-  const chartData = useMemo(() => {
-    if (!expandedId) return [];
-    const daily = metricsMap.get(expandedId) ?? [];
-    return [...daily]
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map((m) => ({
-        giorno: new Date(m.date).toLocaleDateString("it-IT", {
-          day: "2-digit",
-          month: "short",
-        }),
-        Impressions: m.impressions,
-        Click: m.clicks,
-        Lead: leadsByDate.get(m.date) ?? 0,
-      }));
-  }, [expandedId, metricsMap, leadsByDate]);
 
   // ── Sorted daily metrics for expanded table ───────────────────
   const sortedDailyMetrics = useMemo(() => {
@@ -418,59 +393,7 @@ export default function CampaignsPage() {
 
                   {/* ── Expanded detail ─────────────────────── */}
                   {isExpanded && (
-                    <div className="space-y-5 border-t border-border bg-muted p-4 md:p-5">
-                      {/* Chart */}
-                      {chartData.length > 0 && (
-                        <div>
-                          <h4 className="mb-3 text-sm font-semibold text-foreground">
-                            Andamento periodo selezionato
-                          </h4>
-                          <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={chartData}>
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke="var(--border)"
-                                />
-                                <XAxis
-                                  dataKey="giorno"
-                                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                                  axisLine={{ stroke: "var(--border)" }}
-                                  interval="preserveStartEnd"
-                                />
-                                <YAxis
-                                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                                  axisLine={{ stroke: "var(--border)" }}
-                                  allowDecimals={false}
-                                />
-                                <Tooltip
-                                  contentStyle={{
-                                    borderRadius: "8px",
-                                    border: "1px solid var(--border)",
-                                    boxShadow:
-                                      "0 1px 3px rgba(0,0,0,0.1)",
-                                    backgroundColor: "var(--card)",
-                                    color: "var(--foreground)",
-                                  }}
-                                  formatter={(value) => [
-                                    Number(value).toLocaleString("it-IT"),
-                                    "",
-                                  ]}
-                                />
-                                <Line
-                                  type="monotone"
-                                  dataKey="Lead"
-                                  stroke="#10B981"
-                                  strokeWidth={2}
-                                  dot={{ r: 2 }}
-                                  activeDot={{ r: 4 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      )}
-
+                    <div className="border-t border-border bg-muted p-4 md:p-5">
                       {/* Daily metrics table */}
                       <div>
                         <h4 className="mb-3 text-sm font-semibold text-foreground">
