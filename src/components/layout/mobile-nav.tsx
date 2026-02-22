@@ -16,6 +16,7 @@ import {
   Receipt,
   ScrollText,
   TrendingUp,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, ADMIN_NAV_ITEMS, STAFF_NAV_ITEMS } from "@/lib/constants";
@@ -35,17 +36,21 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Receipt,
   ScrollText,
   TrendingUp,
+  UserCog,
 };
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { isAdmin, role } = useOrganization();
+  const { role } = useOrganization();
   const isStaff = role === "staff";
+
+  const isAdminOrSuper = role === "admin" || role === "super_admin";
+  const showOwnerNav = role === "owner";
 
   const logoHref = isStaff
     ? "/staff/studi"
-    : role === "admin"
+    : isAdminOrSuper
       ? "/admin/dashboard-aggregata"
       : "/dashboard";
 
@@ -73,7 +78,7 @@ export function MobileNav() {
         <ScrollArea className="flex-1">
           <nav className="flex flex-col gap-1 p-4">
             {/* Staff: show only staff nav items */}
-            {isStaff ? (
+            {isStaff &&
               STAFF_NAV_ITEMS.map((item) => {
                 const Icon = iconMap[item.icon];
                 const isActive = pathname.startsWith("/staff");
@@ -94,70 +99,59 @@ export function MobileNav() {
                     {item.label}
                   </Link>
                 );
-              })
-            ) : (
-              <>
-                {NAV_ITEMS.map((item) => {
-                  const Icon = iconMap[item.icon];
-                  const isActive =
-                    pathname === item.href ||
-                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              })}
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                        isActive
-                          ? "border-l-3 border-primary bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      {Icon && <Icon className="h-4 w-4" />}
-                      {item.label}
-                    </Link>
-                  );
-                })}
+            {/* Owner: standard nav items */}
+            {showOwnerNav &&
+              NAV_ITEMS.map((item) => {
+                const Icon = iconMap[item.icon];
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-                {isAdmin && (
-                  <>
-                    <div className="my-4">
-                      <div className="h-px bg-border" />
-                    </div>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "border-l-3 border-primary bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {Icon && <Icon className="h-4 w-4" />}
+                    {item.label}
+                  </Link>
+                );
+              })}
 
-                    <span className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Amministrazione
-                    </span>
+            {/* Admin / Super Admin: admin nav items only */}
+            {isAdminOrSuper &&
+              ADMIN_NAV_ITEMS.map((item) => {
+                const Icon = iconMap[item.icon];
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/admin/dashboard-aggregata" && pathname.startsWith(item.href));
 
-                    {ADMIN_NAV_ITEMS.map((item) => {
-                      const Icon = iconMap[item.icon];
-                      const isActive =
-                        pathname === item.href ||
-                        (item.href !== "/admin/dashboard-aggregata" && pathname.startsWith(item.href));
-
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                            isActive
-                              ? "border-l-3 border-primary bg-primary/10 text-primary"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                        >
-                          {Icon && <Icon className="h-4 w-4" />}
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </>
-                )}
-              </>
-            )}
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "border-l-3 border-[#F89627] bg-[#FFF7ED] text-[#F89627]"
+                        : "text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827]"
+                    )}
+                  >
+                    {Icon && <Icon className="h-4 w-4" />}
+                    {item.label}
+                  </Link>
+                );
+              })}
           </nav>
         </ScrollArea>
 
