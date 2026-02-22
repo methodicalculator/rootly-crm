@@ -7,7 +7,7 @@ import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
-import { IN_LAVORAZIONE_STAGES } from "@/lib/constants/stages";
+
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
 import { ClientDetailSheet } from "@/components/clients/client-detail-sheet";
@@ -17,7 +17,7 @@ const tabs = [
   { key: "tutti", label: "Tutti" },
   { key: "new", label: "Nuovi Lead" },
   { key: "contacted", label: "Non Risponde" },
-  { key: "in_lavorazione", label: "Appuntamento Fissato" },
+  { key: "appointment_scheduled", label: "Appuntamento Fissato" },
   { key: "appointment_completed", label: "Da Fidelizzare" },
   { key: "converted", label: "Percorsi" },
   { key: "lost", label: "Persi" },
@@ -65,16 +65,14 @@ export default function ClientsPage() {
         counts.appointment_completed = (counts.appointment_completed ?? 0) + 1;
       else if (stage === "converted") counts.converted = (counts.converted ?? 0) + 1;
       else if (stage === "lost") counts.lost = (counts.lost ?? 0) + 1;
-      else if (IN_LAVORAZIONE_STAGES.includes(stage))
-        counts.in_lavorazione = (counts.in_lavorazione ?? 0) + 1;
+      else if (stage === "appointment_scheduled")
+        counts.appointment_scheduled = (counts.appointment_scheduled ?? 0) + 1;
     }
     return counts;
   }, [clients]);
 
   const filteredClients = useMemo(() => {
     if (activeTab === "tutti") return clients;
-    if (activeTab === "in_lavorazione")
-      return clients.filter((c) => IN_LAVORAZIONE_STAGES.includes(c.sales_stage ?? "new"));
     return clients.filter((c) => (c.sales_stage ?? "new") === activeTab);
   }, [clients, activeTab]);
 
