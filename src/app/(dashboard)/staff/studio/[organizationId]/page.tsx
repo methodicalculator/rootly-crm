@@ -80,8 +80,8 @@ export default function StaffStudioPage() {
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="campaigns">Campagne Marketing</TabsTrigger>
           <TabsTrigger value="analytics">Analisi Lead</TabsTrigger>
+          <TabsTrigger value="campaigns">Campagne Marketing</TabsTrigger>
           <TabsTrigger value="report">Report</TabsTrigger>
         </TabsList>
 
@@ -89,12 +89,12 @@ export default function StaffStudioPage() {
           <StudioDashboardTab organizationId={organizationId} />
         </TabsContent>
 
-        <TabsContent value="campaigns" className="mt-6">
-          <StudioCampaignsTab organizationId={organizationId} />
-        </TabsContent>
-
         <TabsContent value="analytics" className="mt-6">
           <StudioAnalyticsTab organizationId={organizationId} />
+        </TabsContent>
+
+        <TabsContent value="campaigns" className="mt-6">
+          <StudioCampaignsTab organizationId={organizationId} />
         </TabsContent>
 
         <TabsContent value="report" className="mt-6">

@@ -289,12 +289,12 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div>
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Analisi Lead</h1>
-          <p className="text-muted-foreground">Analisi conversioni e performance dei lead.</p>
+          <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
         </div>
-        <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
+        <p className="mt-2 text-muted-foreground">Analisi conversioni e performance dei lead.</p>
       </div>
 
       {/* Empty state for date filter */}
@@ -416,7 +416,7 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }} style={{ outline: "none" }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis
                     type="number"
@@ -454,6 +454,7 @@ export default function AnalyticsPage() {
                   />
                   <Bar
                     dataKey="value"
+                    activeBar={false}
                     radius={[0, 4, 4, 0]}
                     onMouseLeave={() => setActiveFunnelIndex(null)}
                   >
@@ -556,7 +557,7 @@ export default function AnalyticsPage() {
           <Card className="bg-card shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Clienti con Revenue
+                Clienti con Incasso
               </CardTitle>
             </CardHeader>
             <CardContent>

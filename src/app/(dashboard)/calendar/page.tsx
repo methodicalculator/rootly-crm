@@ -34,6 +34,7 @@ export default function CalendarPage() {
   const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
   const [appointments, setAppointments] = useState<AppointmentWithClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithClient | null>(null);
@@ -42,9 +43,28 @@ export default function CalendarPage() {
   const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentWithClient | null>(null);
   const calendarWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to 07:00 on mount
+  // Mobile detection — default to day view on small screens
   useEffect(() => {
-    if (loading) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = (matches: boolean) => {
+      setIsMobile(matches);
+      if (matches) {
+        setView("day");
+      } else {
+        setView((prev) => (prev === "day" ? "week" : prev));
+      }
+    };
+    update(mq.matches);
+    const handler = (e: MediaQueryListEvent) => update(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const availableViews: View[] = isMobile ? ["day"] : ["week", "month"];
+
+  // Scroll to 07:00 on mount and when switching to time-based views
+  useEffect(() => {
+    if (loading || view === "month") return;
     const timer = setTimeout(() => {
       const el = calendarWrapperRef.current?.querySelector(".rbc-time-content");
       if (!el) return;
@@ -52,7 +72,7 @@ export default function CalendarPage() {
       el.scrollTop = 7 * 64;
     }, 50);
     return () => clearTimeout(timer);
-  }, [loading]);
+  }, [loading, view]);
 
   const fetchAppointments = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -150,20 +170,30 @@ export default function CalendarPage() {
             onView={setView}
             date={date}
             onNavigate={setDate}
-            views={["week", "month"]}
+            views={availableViews}
             step={60}
             timeslots={1}
+            popup
             onSelectEvent={handleSelectEvent}
             components={{
               toolbar: CalendarToolbar,
-              event: ({ event }: { event: CalendarEvent }) => (
-                <div className="leading-tight">
-                  <div className="font-bold text-[0.8125rem]">{event.title}</div>
-                  <div className="text-[0.8125rem] opacity-90">
-                    {format(event.start, "HH:mm")} – {format(event.end, "HH:mm")}
+              event: ({ event }: { event: CalendarEvent }) => {
+                if (view === "month") {
+                  return (
+                    <span className="block truncate text-xs font-medium">
+                      {format(event.start, "HH:mm")} {event.title}
+                    </span>
+                  );
+                }
+                return (
+                  <div className="leading-tight">
+                    <div className="font-bold text-[0.8125rem]">{event.title}</div>
+                    <div className="text-[0.8125rem] opacity-90">
+                      {format(event.start, "HH:mm")} – {format(event.end, "HH:mm")}
+                    </div>
                   </div>
-                </div>
-              ),
+                );
+              },
               week: {
                 header: ({ date: d }: { date: Date }) => {
                   const dayLabel = format(d, "EEE", { locale: it }).toUpperCase();
@@ -190,7 +220,7 @@ export default function CalendarPage() {
             }}
             messages={messages}
             culture="it"
-            style={{ height: "auto" }}
+            style={{ height: view === "month" ? 700 : "auto" }}
             formats={{
               dayHeaderFormat: (d: Date) =>
                 format(d, "EEEE d MMMM", { locale: it }),

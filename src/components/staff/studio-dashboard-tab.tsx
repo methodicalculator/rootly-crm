@@ -8,11 +8,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Users,
   UserPlus,
   UserCheck,
   Wallet,
-  Calendar,
+  Banknote,
   Loader2,
   Mail,
   Phone,
@@ -29,8 +28,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
-import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
-import { LEAD_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
+import { CLIENT_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -41,20 +39,12 @@ interface LeadChartPoint {
   lead: number;
 }
 
-const MONTH_NAMES_FULL = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
-];
-
 export function StudioDashboardTab({ organizationId }: { organizationId: string }) {
-  const [totalLeadCount, setTotalLeadCount] = useState(0);
-  const [totalClientCount, setTotalClientCount] = useState(0);
   const [newLeads, setNewLeads] = useState(0);
+  const [clientsMonth, setClientsMonth] = useState(0);
   const [spendMonth, setSpendMonth] = useState(0);
-  const [weekAppointments, setWeekAppointments] = useState(0);
+  const [incassatoMonth, setIncassatoMonth] = useState(0);
   const [leadChartData, setLeadChartData] = useState<LeadChartPoint[]>([]);
-  const [chartMonthName, setChartMonthName] = useState("");
-  const [recentClients, setRecentClients] = useState<Client[]>([]);
   const [leadsToContact, setLeadsToContact] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -82,53 +72,38 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       const now = new Date();
       const romeToday = toRomeDateStr(now);
       const startOfMonth = startOfMonthRomeISO(now);
-      const romeMonthIdx = parseInt(romeToday.slice(5, 7)) - 1;
-
-      setChartMonthName(MONTH_NAMES_FULL[romeMonthIdx]);
-
-      const startOfWeek = new Date(now);
-      const dow = startOfWeek.getDay();
-      startOfWeek.setDate(startOfWeek.getDate() - (dow === 0 ? 6 : dow - 1));
-      startOfWeek.setHours(0, 0, 0, 0);
-
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-
       const [
-        leadStagesRes,
-        clientStagesRes,
         leadsRes,
-        appointmentsRes,
+        clientsMonthRes,
+        incassatoRes,
         chartClientsRes,
-        recentClientsRes,
         orgCampaignsRes,
       ] = await Promise.all([
-        orgFilter(
-          supabase
-            .from("clients")
-            .select("id", { count: "exact", head: true })
-            .in("sales_stage", LEAD_STAGES)
-        ),
-        orgFilter(
-          supabase
-            .from("clients")
-            .select("id", { count: "exact", head: true })
-            .in("sales_stage", [...CLIENT_STAGES])
-        ),
+        // 1) Nuovi Lead Mese
         orgFilter(
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
             .gte("created_at", startOfMonth)
         ),
+        // 2) Clienti Mese
         orgFilter(
           supabase
-            .from("appointments")
+            .from("clients")
             .select("id", { count: "exact", head: true })
-            .gte("start_time", startOfWeek.toISOString())
-            .lte("start_time", endOfWeek.toISOString())
+            .in("sales_stage", [...CLIENT_STAGES])
+            .gte("created_at", startOfMonth)
         ),
+        // 3) Incassato Mese
+        orgFilter(
+          supabase
+            .from("clients")
+            .select("revenue")
+            .not("revenue", "is", null)
+            .in("sales_stage", [...CLIENT_STAGES])
+            .gte("updated_at", startOfMonth)
+        ),
+        // 4) Chart: clients created this month
         orgFilter(
           supabase
             .from("clients")
@@ -136,20 +111,18 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
             .gte("created_at", startOfMonth)
             .order("created_at", { ascending: true })
         ),
-        orgFilter(
-          supabase
-            .from("clients")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(5)
-        ),
+        // 5) Campaign IDs for spend calc
         orgFilter(supabase.from("campaigns").select("id")),
       ]);
 
-      setTotalLeadCount(leadStagesRes.count ?? 0);
-      setTotalClientCount(clientStagesRes.count ?? 0);
       setNewLeads(leadsRes.count ?? 0);
-      setWeekAppointments(appointmentsRes.count ?? 0);
+      setClientsMonth(clientsMonthRes.count ?? 0);
+
+      let totalIncassato = 0;
+      for (const row of incassatoRes.data ?? []) {
+        totalIncassato += Number((row as { revenue: number }).revenue) || 0;
+      }
+      setIncassatoMonth(totalIncassato);
 
       const campaignIds = (orgCampaignsRes.data ?? []).map(
         (c: { id: string }) => c.id
@@ -189,8 +162,6 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       }
       setLeadChartData(points);
 
-      setRecentClients((recentClientsRes.data ?? []) as Client[]);
-
       setLoading(false);
     }
 
@@ -209,7 +180,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -230,24 +201,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lead
-            </CardTitle>
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {totalLeadCount}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">In fase di acquisizione</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Clienti
+              Clienti Mese
             </CardTitle>
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
               <UserCheck className="h-5 w-5 text-[#10B981]" />
@@ -255,9 +209,9 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           </CardHeader>
           <CardContent>
             <div className="text-[32px] font-bold leading-tight text-foreground">
-              {totalClientCount}
+              {clientsMonth}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Seduta o percorso</p>
+            <p className="mt-1 text-xs text-muted-foreground">Acquisiti questo mese</p>
           </CardContent>
         </Card>
 
@@ -281,17 +235,17 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Appuntamenti Settimana
+              Incassato Mese
             </CardTitle>
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/50 p-2">
-              <Calendar className="h-5 w-5 text-[#8B5CF6]" />
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
+              <Banknote className="h-5 w-5 text-[#10B981]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {weekAppointments}
+            <div className="text-2xl font-bold leading-tight text-foreground">
+              {`\u20AC${incassatoMonth.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Questa settimana</p>
+            <p className="mt-1 text-xs text-muted-foreground">Incassi registrati questo mese</p>
           </CardContent>
         </Card>
       </div>
@@ -300,7 +254,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       <Card className="bg-card shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold text-foreground">
-            Lead Generati &mdash; {chartMonthName}
+            Lead Generati
           </CardTitle>
           <p className="text-sm text-muted-foreground">Mese corrente</p>
         </CardHeader>
@@ -342,8 +296,8 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
                     dataKey="lead"
                     stroke="var(--primary)"
                     strokeWidth={2}
-                    dot={{ fill: "var(--primary)", r: 3 }}
-                    activeDot={{ r: 5, fill: "var(--primary)" }}
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--primary)" }}
                     name="Lead"
                   />
                 </LineChart>
@@ -353,129 +307,70 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
         </CardContent>
       </Card>
 
-      {/* Lead Recenti + Lead da Contattare */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-foreground">
-              Lead Recenti
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentClients.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                <Users className="h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-2 font-medium">Nessun cliente ancora.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentClients.map((client) => (
-                  <div
-                    key={client.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-muted"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate font-medium text-foreground">
-                          {client.nome} {client.cognome}
-                        </p>
-                        {client.source &&
-                          CLIENT_SOURCE_CONFIG[client.source] && (
-                            <span
-                              className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${CLIENT_SOURCE_CONFIG[client.source].color}`}
-                            >
-                              {CLIENT_SOURCE_CONFIG[client.source].label}
-                            </span>
-                          )}
-                      </div>
-                      {client.email && (
-                        <p className="truncate text-sm text-muted-foreground">
-                          {client.email}
-                        </p>
-                      )}
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        {client.first_contact_date && (
-                          <span>
-                            Contatto:{" "}
-                            {new Date(client.first_contact_date).toLocaleDateString("it-IT")}
-                          </span>
-                        )}
-                        {client.service_interest && (
-                          <span>{client.service_interest}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-foreground">
-              Lead da Contattare ({leadsToContact.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {leadsToContact.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">&#x2705;</div>
-                <h3 className="text-lg font-semibold text-foreground">Ottimo lavoro!</h3>
-                <p className="text-muted-foreground">
-                  Nessun lead in attesa di contatto al momento.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {leadsToContact.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="rounded-lg border border-border p-3 transition-colors hover:bg-muted"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        <p className="font-medium text-foreground">
-                          {lead.nome} {lead.cognome}
-                        </p>
-                        {lead.email && (
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{lead.email}</span>
-                          </div>
-                        )}
-                        {lead.telefono && (
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5 shrink-0" />
-                            <span>{lead.telefono}</span>
-                          </div>
-                        )}
-                        {lead.service_interest && (
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Briefcase className="h-3.5 w-3.5 shrink-0" />
-                            <span>{lead.service_interest}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          <span>
-                            Ricevuto{" "}
-                            {formatDistanceToNow(new Date(lead.created_at), {
-                              addSuffix: true,
-                              locale: it,
-                            })}
-                          </span>
+      {/* Lead da Contattare */}
+      <Card className="bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base font-semibold text-foreground">
+            Lead da Contattare ({leadsToContact.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {leadsToContact.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">&#x2705;</div>
+              <h3 className="text-lg font-semibold text-foreground">Ottimo lavoro!</h3>
+              <p className="text-muted-foreground">
+                Nessun lead in attesa di contatto al momento.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {leadsToContact.map((lead) => (
+                <div
+                  key={lead.id}
+                  className="rounded-lg border border-border p-3 transition-colors hover:bg-muted"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <p className="font-medium text-foreground">
+                        {lead.nome} {lead.cognome}
+                      </p>
+                      {lead.email && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{lead.email}</span>
                         </div>
+                      )}
+                      {lead.telefono && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <span>{lead.telefono}</span>
+                        </div>
+                      )}
+                      {lead.service_interest && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                          <span>{lead.service_interest}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span>
+                          Ricevuto{" "}
+                          {formatDistanceToNow(new Date(lead.created_at), {
+                            addSuffix: true,
+                            locale: it,
+                          })}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -245,9 +245,10 @@ CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
-  type TEXT NOT NULL, -- 'scadenza_contratto', 'budget_alert', 'performance_alert', 'nuovo_studio', 'approvazione', 'nuovo_cliente'
+  type TEXT NOT NULL, -- 'scadenza_contratto', 'budget_alert', 'performance_alert', 'nuovo_studio', 'approvazione', 'nuovo_cliente', 'incasso_non_aggiornato', 'lead_non_contattato'
   message TEXT NOT NULL,
   read BOOLEAN NOT NULL DEFAULT false,
+  client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -261,12 +262,13 @@ DECLARE
   _source TEXT;
 BEGIN
   _source := COALESCE(NEW.source, 'altro');
-  INSERT INTO notifications (organization_id, user_id, type, message)
+  INSERT INTO notifications (organization_id, user_id, type, message, client_id)
   SELECT
     NEW.organization_id,
     up.id,
     'nuovo_cliente',
-    'Nuovo cliente: ' || NEW.nome || ' ' || NEW.cognome || ' (fonte: ' || _source || ')'
+    'Nuovo cliente: ' || NEW.nome || ' ' || NEW.cognome || ' (fonte: ' || _source || ')',
+    NEW.id
   FROM user_profiles up
   WHERE up.organization_id = NEW.organization_id;
   RETURN NEW;
@@ -434,6 +436,7 @@ CREATE INDEX idx_communications_client_id ON communications(client_id);
 CREATE INDEX idx_notifications_org ON notifications(organization_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_read ON notifications(read);
+CREATE INDEX idx_notifications_client_type ON notifications(client_id, type);
 
 -- Events
 CREATE INDEX idx_events_org ON events(organization_id);

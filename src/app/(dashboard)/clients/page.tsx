@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Users, Plus, Loader2, Mail, Phone } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -22,11 +23,15 @@ const tabs = [
 ] as const;
 
 export default function ClientsPage() {
-  const [activeTab, setActiveTab] = useState<string>("new");
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("highlight");
+  const [activeTab, setActiveTab] = useState<string>(highlightId ? "tutti" : "new");
   const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const highlightRef = useRef<HTMLTableRowElement>(null);
+  const hasScrolled = useRef(false);
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
@@ -39,6 +44,14 @@ export default function ClientsPage() {
     if (orgLoading) return;
     fetchClients();
   }, [orgLoading, fetchClients]);
+
+  // Auto-scroll to highlighted client
+  useEffect(() => {
+    if (highlightId && !loading && highlightRef.current && !hasScrolled.current) {
+      hasScrolled.current = true;
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, loading]);
 
   const tabCounts = useMemo(() => {
     const counts: Record<string, number> = { tutti: clients.length };
@@ -151,10 +164,14 @@ export default function ClientsPage() {
                   ? CLIENT_SOURCE_CONFIG[client.source]
                   : null;
 
+                const isHighlighted = highlightId === client.id;
                 return (
                   <tr
                     key={client.id}
-                    className="border-b border-border last:border-b-0 hover:bg-muted transition-colors"
+                    ref={isHighlighted ? highlightRef : undefined}
+                    className={`border-b border-border last:border-b-0 hover:bg-muted transition-colors ${
+                      isHighlighted ? "bg-primary/10 ring-2 ring-primary/30" : ""
+                    }`}
                   >
                     <td className="px-4 py-3">
                       <div className="flex flex-col">

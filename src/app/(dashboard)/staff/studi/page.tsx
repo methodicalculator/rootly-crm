@@ -13,7 +13,6 @@ import {
   Building2,
   Users,
   UserPlus,
-  Target,
   Loader2,
   Eye,
   Mail,
@@ -28,13 +27,13 @@ import {
   ORGANIZATION_STATUS_CONFIG,
   ORGANIZATION_TYPE_CONFIG,
 } from "@/lib/constants";
+import { CLIENT_STAGES } from "@/lib/constants/stages";
 import { startOfMonthRomeISO } from "@/lib/date-utils";
 import type { Organization, OrganizationType, OrganizationStatus } from "@/types";
 
 interface OrgWithStats extends Organization {
   clientCount: number;
   leadsMonth: number;
-  activeCampaigns: number;
 }
 
 export default function StaffStudiPage() {
@@ -71,28 +70,23 @@ export default function StaffStudiPage() {
 
     const withStats = await Promise.all(
       allOrgs.map(async (org) => {
-        const [clientsRes, leadsRes, campaignsRes] = await Promise.all([
+        const [clientsRes, leadsRes] = await Promise.all([
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
-            .eq("organization_id", org.id),
+            .eq("organization_id", org.id)
+            .in("sales_stage", CLIENT_STAGES),
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
             .eq("organization_id", org.id)
             .gte("created_at", startOfMonth),
-          supabase
-            .from("campaigns")
-            .select("id", { count: "exact", head: true })
-            .eq("organization_id", org.id)
-            .eq("status", "attiva"),
         ]);
 
         return {
           ...org,
           clientCount: clientsRes.count ?? 0,
           leadsMonth: leadsRes.count ?? 0,
-          activeCampaigns: campaignsRes.count ?? 0,
         };
       })
     );
@@ -232,21 +226,16 @@ export default function StaffStudiPage() {
                     </div>
 
                     {/* Stats row */}
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                      <StatBox
-                        icon={<Users className="h-4 w-4 text-primary" />}
-                        label="Clienti"
-                        value={org.clientCount}
-                      />
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                       <StatBox
                         icon={<UserPlus className="h-4 w-4 text-[#10B981]" />}
                         label="Lead Mese"
                         value={org.leadsMonth}
                       />
                       <StatBox
-                        icon={<Target className="h-4 w-4 text-[#F59E0B]" />}
-                        label="Campagne"
-                        value={org.activeCampaigns}
+                        icon={<Users className="h-4 w-4 text-primary" />}
+                        label="Clienti"
+                        value={org.clientCount}
                       />
                       {org.monthly_budget != null && (
                         <StatBox
@@ -265,7 +254,7 @@ export default function StaffStudiPage() {
                           icon={
                             <CalendarDays className="h-4 w-4 text-[#EF4444]" />
                           }
-                          label="Scadenza"
+                          label="Scadenza Contratto"
                           value={new Date(
                             org.contract_end_date
                           ).toLocaleDateString("it-IT")}

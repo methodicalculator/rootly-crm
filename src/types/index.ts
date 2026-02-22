@@ -196,7 +196,9 @@ export type NotificationType =
   | "performance_alert"
   | "nuovo_studio"
   | "approvazione"
-  | "nuovo_cliente";
+  | "nuovo_cliente"
+  | "incasso_non_aggiornato"
+  | "lead_non_contattato";
 
 export interface Notification {
   id: string;
@@ -205,6 +207,7 @@ export interface Notification {
   type: NotificationType;
   message: string;
   read: boolean;
+  client_id: string | null;
   created_at: string;
 }
 

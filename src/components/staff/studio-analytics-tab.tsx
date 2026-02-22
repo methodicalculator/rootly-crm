@@ -35,10 +35,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { getClients } from "@/lib/supabase/queries";
 import { toRomeDateStr } from "@/lib/date-utils";
 import { IN_LAVORAZIONE_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Client, SalesStage } from "@/types";
 
 const FULL_MONTH_NAMES = [
@@ -48,9 +50,17 @@ const FULL_MONTH_NAMES = [
 
 export function StudioAnalyticsTab({ organizationId }: { organizationId: string }) {
   const [clients, setClients] = useState<Client[]>([]);
+  const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 29), to: new Date() });
   const [contractStartDate, setContractStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeFunnelIndex, setActiveFunnelIndex] = useState<number | null>(null);
+
+  const filteredClients = useMemo(() => {
+    return clients.filter((c) => {
+      const d = new Date(c.created_at);
+      return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
+    });
+  }, [clients, dateRange]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -74,7 +84,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
 
   // === KPI calculations ===
   const kpis = useMemo(() => {
-    const total = clients.length;
+    const total = filteredClients.length;
     if (total === 0) {
       return {
         conversionRate: 0,
@@ -85,7 +95,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
     }
 
     const stageCounts: Record<string, number> = {};
-    for (const c of clients) {
+    for (const c of filteredClients) {
       const stage = c.sales_stage ?? "new";
       stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
     }
@@ -103,12 +113,12 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
     const retentionRate = (converted / total) * 100;
 
     return { conversionRate, responseRate, appointmentRate, retentionRate };
-  }, [clients]);
+  }, [filteredClients]);
 
   // === Pipeline Funnel data ===
   const funnelData = useMemo(() => {
     const stageCounts: Record<string, number> = {};
-    for (const c of clients) {
+    for (const c of filteredClients) {
       const stage = c.sales_stage ?? "new";
       stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
     }
@@ -128,7 +138,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
       { name: "Percorsi", value: acquisiti },
       { name: "Persi", value: persi },
     ];
-  }, [clients]);
+  }, [filteredClients]);
 
   // === Trend Lead (30-day intervals from contract start) ===
   const trendData = useMemo(() => {
@@ -173,7 +183,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
 
   // === Revenue data ===
   const revenueData = useMemo(() => {
-    const withRevenue = clients.filter((c) => c.revenue != null && c.revenue > 0);
+    const withRevenue = filteredClients.filter((c) => c.revenue != null && c.revenue > 0);
     if (withRevenue.length === 0) return null;
 
     const totalRevenue = withRevenue.reduce((sum, c) => sum + (c.revenue ?? 0), 0);
@@ -184,7 +194,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
       avg: avgRevenue,
       count: withRevenue.length,
     };
-  }, [clients]);
+  }, [filteredClients]);
 
   // === Monthly conversion table ===
   const monthlyTable = useMemo(() => {
@@ -232,14 +242,19 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
 
   if (clients.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-          <Users className="h-8 w-8 text-primary" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-end">
+          <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-foreground">Nessun dato disponibile</h3>
-        <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
-          Aggiungi dei lead per visualizzare le analisi di conversione e performance.
-        </p>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Users className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-foreground">Nessun dato disponibile</h3>
+          <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+            Aggiungi dei lead per visualizzare le analisi di conversione e performance.
+          </p>
+        </div>
       </div>
     );
   }
@@ -248,6 +263,11 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
 
   return (
     <div className="space-y-6">
+      {/* Date Range Picker */}
+      <div className="flex items-center justify-end">
+        <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
+      </div>
+
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="bg-card shadow-sm">
@@ -258,7 +278,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">{clients.length}</div>
+            <div className="text-[32px] font-bold leading-tight text-foreground">{filteredClients.length}</div>
           </CardContent>
         </Card>
 
@@ -325,7 +345,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }} style={{ outline: "none" }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis
                     type="number"
@@ -363,6 +383,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
                   />
                   <Bar
                     dataKey="value"
+                    activeBar={false}
                     radius={[0, 4, 4, 0]}
                     onMouseLeave={() => setActiveFunnelIndex(null)}
                   >
@@ -457,7 +478,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
 
           <Card className="bg-card shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Clienti con Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Clienti con Incasso</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-[32px] font-bold leading-tight text-foreground">

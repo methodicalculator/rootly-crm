@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Users,
   UserPlus,
   UserCheck,
   Wallet,
+  Banknote,
   Calendar,
   Loader2,
   ArrowRight,
@@ -36,13 +36,12 @@ import {
 } from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
-import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
-import { LEAD_STAGES, CLIENT_STAGES } from "@/lib/constants/stages";
+import { CLIENT_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import type { Client } from "@/types";
+import type { Client, AppointmentWithClient } from "@/types";
 
 interface LeadChartPoint {
   giorno: string;
@@ -66,14 +65,13 @@ function DashboardContent() {
   // The org ID to use for queries: viewOrgId in view mode, otherwise effectiveOrgId
   const queryOrgId = isViewMode ? viewOrgId : effectiveOrgId;
 
-  const [totalLeadCount, setTotalLeadCount] = useState(0);
-  const [totalClientCount, setTotalClientCount] = useState(0);
   const [newLeads, setNewLeads] = useState(0);
+  const [clientsMonth, setClientsMonth] = useState(0);
   const [spendMonth, setSpendMonth] = useState(0);
-  const [weekAppointments, setWeekAppointments] = useState(0);
+  const [incassatoMonth, setIncassatoMonth] = useState(0);
   const [leadChartData, setLeadChartData] = useState<LeadChartPoint[]>([]);
   const [chartMonthName, setChartMonthName] = useState("");
-  const [recentClients, setRecentClients] = useState<Client[]>([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<AppointmentWithClient[]>([]);
   const [leadsToContact, setLeadsToContact] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [contactingId, setContactingId] = useState<string | null>(null);
@@ -121,17 +119,6 @@ function DashboardContent() {
 
       setChartMonthName(MONTH_NAMES_FULL[romeMonthIdx]);
 
-      // Monday of current week
-      const startOfWeek = new Date(now);
-      const dow = startOfWeek.getDay();
-      startOfWeek.setDate(startOfWeek.getDate() - (dow === 0 ? 6 : dow - 1));
-      startOfWeek.setHours(0, 0, 0, 0);
-
-      // Sunday of current week
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-
       // Helper: add organization_id filter when needed
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orgFilter = (q: any) => {
@@ -141,42 +128,36 @@ function DashboardContent() {
 
       // --- All queries in parallel ---
       const [
-        leadStagesRes,
-        clientStagesRes,
         leadsRes,
-        appointmentsRes,
+        clientsMonthRes,
+        incassatoRes,
         chartClientsRes,
-        recentClientsRes,
+        upcomingApptsRes,
         orgCampaignsRes,
       ] = await Promise.all([
-        // 1) Lead (solo LEAD_STAGES)
-        orgFilter(
-          supabase
-            .from("clients")
-            .select("id", { count: "exact", head: true })
-            .in("sales_stage", LEAD_STAGES)
-        ),
-        // 2) Clienti (solo CLIENT_STAGES)
-        orgFilter(
-          supabase
-            .from("clients")
-            .select("id", { count: "exact", head: true })
-            .in("sales_stage", [...CLIENT_STAGES])
-        ),
-        // 3) Nuovi Lead Questo Mese
+        // 1) Nuovi Lead Questo Mese
         orgFilter(
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
             .gte("created_at", startOfMonth)
         ),
-        // 3) Appuntamenti Questa Settimana
+        // 2) Clienti Mese: CLIENT_STAGES con created_at nel mese corrente
         orgFilter(
           supabase
-            .from("appointments")
+            .from("clients")
             .select("id", { count: "exact", head: true })
-            .gte("start_time", startOfWeek.toISOString())
-            .lte("start_time", endOfWeek.toISOString())
+            .in("sales_stage", [...CLIENT_STAGES])
+            .gte("created_at", startOfMonth)
+        ),
+        // 3) Incassato Mese: somma revenue dei clienti aggiornati questo mese
+        orgFilter(
+          supabase
+            .from("clients")
+            .select("revenue")
+            .not("revenue", "is", null)
+            .in("sales_stage", [...CLIENT_STAGES])
+            .gte("updated_at", startOfMonth)
         ),
         // 4) Chart: clients created from start of current month
         orgFilter(
@@ -186,12 +167,14 @@ function DashboardContent() {
             .gte("created_at", startOfMonth)
             .order("created_at", { ascending: true })
         ),
-        // 5) Clienti Recenti (ultimi 5)
+        // 5) Prossimi 5 appuntamenti futuri
         orgFilter(
           supabase
-            .from("clients")
-            .select("*")
-            .order("created_at", { ascending: false })
+            .from("appointments")
+            .select("*, clients(nome, cognome)")
+            .neq("status", "cancelled")
+            .gte("start_time", now.toISOString())
+            .order("start_time", { ascending: true })
             .limit(5)
         ),
         // 6) Campaign IDs for this org (needed for spend calc)
@@ -203,10 +186,14 @@ function DashboardContent() {
       ]);
 
       // --- KPIs ---
-      setTotalLeadCount(leadStagesRes.count ?? 0);
-      setTotalClientCount(clientStagesRes.count ?? 0);
       setNewLeads(leadsRes.count ?? 0);
-      setWeekAppointments(appointmentsRes.count ?? 0);
+      setClientsMonth(clientsMonthRes.count ?? 0);
+
+      let totalIncassato = 0;
+      for (const row of incassatoRes.data ?? []) {
+        totalIncassato += Number((row as { revenue: number }).revenue) || 0;
+      }
+      setIncassatoMonth(totalIncassato);
 
       // --- Spesa Mese: sum spend from campaign_metrics ---
       const campaignIds = (orgCampaignsRes.data ?? []).map(
@@ -248,8 +235,8 @@ function DashboardContent() {
       }
       setLeadChartData(points);
 
-      // --- Clienti Recenti ---
-      setRecentClients((recentClientsRes.data ?? []) as Client[]);
+      // --- Prossimi Appuntamenti ---
+      setUpcomingAppointments((upcomingApptsRes.data ?? []) as AppointmentWithClient[]);
 
       setLoading(false);
     }
@@ -324,7 +311,7 @@ function DashboardContent() {
       </div>
 
       {/* ====== SEZIONE 1 – KPI Cards ====== */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Nuovi Lead Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -345,31 +332,11 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Lead Totali */}
+        {/* Clienti Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lead
-            </CardTitle>
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/50 p-2">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {totalLeadCount}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              In fase di acquisizione
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Clienti */}
-        <Card className="bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Clienti
+              Clienti Mese
             </CardTitle>
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
               <UserCheck className="h-5 w-5 text-[#10B981]" />
@@ -377,10 +344,10 @@ function DashboardContent() {
           </CardHeader>
           <CardContent>
             <div className="text-[32px] font-bold leading-tight text-foreground">
-              {totalClientCount}
+              {clientsMonth}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Seduta o percorso
+              Acquisiti questo mese
             </p>
           </CardContent>
         </Card>
@@ -403,21 +370,21 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Appuntamenti Settimana */}
+        {/* Incassato Mese */}
         <Card className="bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Appuntamenti Settimana
+              Incassato Mese
             </CardTitle>
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/50 p-2">
-              <Calendar className="h-5 w-5 text-[#8B5CF6]" />
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/50 p-2">
+              <Banknote className="h-5 w-5 text-[#10B981]" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-[32px] font-bold leading-tight text-foreground">
-              {weekAppointments}
+            <div className="text-2xl font-bold leading-tight text-foreground">
+              {`\u20AC${incassatoMonth.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Questa settimana</p>
+            <p className="mt-1 text-xs text-muted-foreground">Incassi registrati questo mese</p>
           </CardContent>
         </Card>
       </div>
@@ -426,9 +393,9 @@ function DashboardContent() {
       <Card className="bg-card shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold text-foreground">
-            Lead Generati &mdash; {chartMonthName}
+            Lead Generati
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Mese corrente</p>
+          <p className="text-sm text-muted-foreground">Mese Corrente</p>
         </CardHeader>
         <CardContent>
           {leadChartData.every((d) => d.lead === 0) ? (
@@ -468,8 +435,8 @@ function DashboardContent() {
                     dataKey="lead"
                     stroke="var(--primary)"
                     strokeWidth={2}
-                    dot={{ fill: "var(--primary)", r: 3 }}
-                    activeDot={{ r: 5, fill: "var(--primary)" }}
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--primary)" }}
                     name="Lead"
                   />
                 </LineChart>
@@ -481,75 +448,79 @@ function DashboardContent() {
 
       {/* ====== SEZIONE 3 + 4 – Clienti Recenti + Lead da Contattare ====== */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Clienti Recenti */}
+        {/* Prossimi Appuntamenti */}
         <Card className="bg-card shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">
-                Lead Recenti
+                Prossimi Appuntamenti
               </CardTitle>
               {!isViewMode && (
                 <Link
-                  href="/clients"
+                  href="/calendar"
                   className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80"
                 >
-                  Vedi tutti
+                  Calendario
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            {recentClients.length === 0 ? (
+            {upcomingAppointments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                <Users className="h-10 w-10 text-muted-foreground/50" />
+                <Calendar className="h-10 w-10 text-muted-foreground/50" />
                 <p className="mt-2 font-medium">
-                  Nessun cliente ancora.
+                  Nessun appuntamento in programma
                 </p>
-                <p className="text-sm">Aggiungi il primo!</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {recentClients.map((client) => (
-                  <div
-                    key={client.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-muted"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                {upcomingAppointments.map((appt) => {
+                  const start = new Date(appt.start_time);
+                  const end = new Date(appt.end_time);
+                  const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
+                  const durationLabel = durationMin >= 60
+                    ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}min` : ""}`
+                    : `${durationMin}min`;
+                  const clientName = appt.clients
+                    ? `${appt.clients.nome} ${appt.clients.cognome}`
+                    : appt.title;
+
+                  return (
+                    <button
+                      key={appt.id}
+                      type="button"
+                      onClick={() => {
+                        if (appt.client_id) {
+                          router.push(`/clients?highlight=${appt.client_id}`);
+                        }
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted ${
+                        appt.client_id ? "cursor-pointer" : ""
+                      }`}
+                    >
+                      <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <span className="text-xs font-semibold uppercase leading-none">
+                          {format(start, "MMM", { locale: it })}
+                        </span>
+                        <span className="text-lg font-bold leading-none">
+                          {format(start, "d")}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-foreground">
-                          {client.nome} {client.cognome}
+                          {clientName}
                         </p>
-                        {client.source &&
-                          CLIENT_SOURCE_CONFIG[client.source] && (
-                            <span
-                              className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${CLIENT_SOURCE_CONFIG[client.source].color}`}
-                            >
-                              {CLIENT_SOURCE_CONFIG[client.source].label}
-                            </span>
-                          )}
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{format(start, "HH:mm")} – {format(end, "HH:mm")}</span>
+                          <span className="text-muted-foreground/50">·</span>
+                          <span>{durationLabel}</span>
+                        </div>
                       </div>
-                      {client.email && (
-                        <p className="truncate text-sm text-muted-foreground">
-                          {client.email}
-                        </p>
-                      )}
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        {client.first_contact_date && (
-                          <span>
-                            Contatto:{" "}
-                            {new Date(
-                              client.first_contact_date
-                            ).toLocaleDateString("it-IT")}
-                          </span>
-                        )}
-                        {client.service_interest && (
-                          <span>{client.service_interest}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </CardContent>

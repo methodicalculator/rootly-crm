@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,6 +23,8 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   performance_alert: "Performance",
   nuovo_studio: "Nuovo Studio",
   approvazione: "Approvazione",
+  incasso_non_aggiornato: "Incasso da Aggiornare",
+  lead_non_contattato: "Lead Non Contattato",
 };
 
 function timeAgo(dateStr: string): string {
@@ -37,9 +40,11 @@ function timeAgo(dateStr: string): string {
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const { userId, effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -131,7 +136,7 @@ export function NotificationBell() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
           <Bell className="h-5 w-5" />
@@ -177,10 +182,16 @@ export function NotificationBell() {
                 return (
                   <button
                     key={n.id}
-                    onClick={() => !n.read && markAsRead(n.id)}
+                    onClick={async () => {
+                      if (!n.read) await markAsRead(n.id);
+                      if (n.client_id) {
+                        setOpen(false);
+                        router.push(`/clients?highlight=${n.client_id}`);
+                      }
+                    }}
                     className={`flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted ${
                       !n.read ? "bg-primary/5" : ""
-                    }`}
+                    } ${n.client_id ? "cursor-pointer" : ""}`}
                   >
                     <div className="mt-1 shrink-0">
                       {!n.read ? (

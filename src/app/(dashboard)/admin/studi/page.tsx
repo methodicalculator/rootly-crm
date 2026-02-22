@@ -22,7 +22,6 @@ import {
   Building2,
   Users,
   UserPlus,
-  Target,
   Loader2,
   Eye,
   Mail,
@@ -56,7 +55,6 @@ interface StaffMember {
 interface OrgWithStats extends Organization {
   clientCount: number;
   leadsMonth: number;
-  activeCampaigns: number;
   assignedStaff: StaffMember[];
 }
 
@@ -124,7 +122,7 @@ export default function GestioneStudiPage() {
 
     const withStats = await Promise.all(
       allOrgs.map(async (org) => {
-        const [clientsRes, leadsRes, campaignsRes, staffOrgRes] = await Promise.all([
+        const [clientsRes, leadsRes, staffOrgRes] = await Promise.all([
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
@@ -135,11 +133,6 @@ export default function GestioneStudiPage() {
             .select("id", { count: "exact", head: true })
             .eq("organization_id", org.id)
             .gte("created_at", startOfMonth),
-          supabase
-            .from("campaigns")
-            .select("id", { count: "exact", head: true })
-            .eq("organization_id", org.id)
-            .eq("status", "attiva"),
           supabase
             .from("staff_organizations")
             .select("user_id")
@@ -180,7 +173,6 @@ export default function GestioneStudiPage() {
           ...org,
           clientCount: clientsRes.count ?? 0,
           leadsMonth: leadsRes.count ?? 0,
-          activeCampaigns: campaignsRes.count ?? 0,
           assignedStaff,
         };
       })
@@ -467,21 +459,16 @@ export default function GestioneStudiPage() {
                     </div>
 
                     {/* Stats row */}
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                      <StatBox
-                        icon={<Users className="h-4 w-4 text-primary" />}
-                        label="Clienti"
-                        value={org.clientCount}
-                      />
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                       <StatBox
                         icon={<UserPlus className="h-4 w-4 text-[#10B981]" />}
                         label="Lead Mese"
                         value={org.leadsMonth}
                       />
                       <StatBox
-                        icon={<Target className="h-4 w-4 text-[#F59E0B]" />}
-                        label="Campagne"
-                        value={org.activeCampaigns}
+                        icon={<Users className="h-4 w-4 text-primary" />}
+                        label="Clienti"
+                        value={org.clientCount}
                       />
                       {org.monthly_budget != null && (
                         <StatBox
@@ -500,7 +487,7 @@ export default function GestioneStudiPage() {
                           icon={
                             <CalendarDays className="h-4 w-4 text-[#EF4444]" />
                           }
-                          label="Scadenza"
+                          label="Scadenza Contratto"
                           value={new Date(
                             org.contract_end_date
                           ).toLocaleDateString("it-IT")}

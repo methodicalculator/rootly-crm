@@ -22,7 +22,8 @@
       "Bash(export PATH:*)",
       "Bash(npx next lint:*)",
       "Bash(node -e:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(sips:*)"
     ]
   }
 }

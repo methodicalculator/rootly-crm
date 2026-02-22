@@ -60,6 +60,8 @@ export function SalesPipelineSelect({
   const [showConvertedDialog, setShowConvertedDialog] = useState(false);
   const [convertedImporto, setConvertedImporto] = useState("");
   const [convertedSessions, setConvertedSessions] = useState("");
+  const [showSingolaSedutaDialog, setShowSingolaSedutaDialog] = useState(false);
+  const [singolaSedutaImporto, setSingolaSedutaImporto] = useState("");
   const [revenueValue, setRevenueValue] = useState(
     currentRevenue != null ? String(currentRevenue) : ""
   );
@@ -111,12 +113,14 @@ export function SalesPipelineSelect({
         if (extraFields.sessions_count !== undefined) updates.sessions_count = extraFields.sessions_count;
       }
 
-      // If leaving "appointment_scheduled", delete associated appointment
+      // If leaving "appointment_scheduled", cancel associated appointments
+      // (UPDATE instead of DELETE — RLS allows UPDATE for org users, not DELETE)
       if (currentStage === "appointment_scheduled" && newStage !== "appointment_scheduled") {
         await supabase
           .from("appointments")
-          .delete()
-          .eq("client_id", clientId);
+          .update({ status: "cancelled" })
+          .eq("client_id", clientId)
+          .eq("status", "scheduled");
       }
 
       const { error } = await supabase
@@ -156,18 +160,29 @@ export function SalesPipelineSelect({
       return;
     }
 
+    if (stage === "appointment_completed") {
+      setShowSingolaSedutaDialog(true);
+      setSingolaSedutaImporto("");
+      setShowLostReason(false);
+      setShowAppointmentDialog(false);
+      setShowConvertedDialog(false);
+      return;
+    }
+
     if (stage === "converted") {
       setShowConvertedDialog(true);
       setConvertedImporto("");
       setConvertedSessions("");
       setShowLostReason(false);
       setShowAppointmentDialog(false);
+      setShowSingolaSedutaDialog(false);
       return;
     }
 
     setShowLostReason(false);
     setShowAppointmentDialog(false);
     setShowConvertedDialog(false);
+    setShowSingolaSedutaDialog(false);
     updateStage(stage);
   }
 
@@ -178,6 +193,15 @@ export function SalesPipelineSelect({
 
   function handleLostReasonSelect(value: string) {
     updateStage("lost", value as LostReason);
+  }
+
+  function handleSingolaSedutaConfirm() {
+    const importo = singolaSedutaImporto ? parseInt(singolaSedutaImporto, 10) : null;
+    setShowSingolaSedutaDialog(false);
+    updateStage("appointment_completed", undefined, undefined, {
+      revenue: importo,
+      sessions_count: 1,
+    });
   }
 
   function handleConvertedConfirm() {
@@ -298,6 +322,47 @@ export function SalesPipelineSelect({
         clientName={clientName}
         onSuccess={handleAppointmentSaved}
       />
+
+      <Dialog open={showSingolaSedutaDialog} onOpenChange={setShowSingolaSedutaDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Singola Seduta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                Importo seduta
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  &euro;
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={singolaSedutaImporto}
+                  placeholder="0"
+                  className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  onChange={(e) =>
+                    setSingolaSedutaImporto(e.target.value.replace(/\D/g, ""))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowSingolaSedutaDialog(false)}
+            >
+              Annulla
+            </Button>
+            <Button onClick={handleSingolaSedutaConfirm}>
+              Conferma
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
         <DialogContent className="sm:max-w-md">

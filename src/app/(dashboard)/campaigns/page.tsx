@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Megaphone,
-  Plus,
   Loader2,
   ChevronDown,
   ChevronUp,
@@ -26,19 +25,11 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns, getClients } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
-import { CampaignFormDialog } from "@/components/campaigns/campaign-form-dialog";
+import { LEAD_STAGES } from "@/lib/constants/stages";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { toRomeDateStr } from "@/lib/date-utils";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import type { Campaign, CampaignMetrics, Client } from "@/types";
-
-// ── Tabs ──────────────────────────────────────────────────────────
-const tabs = [
-  { key: "tutte", label: "Tutte" },
-  { key: "attiva", label: "Attive" },
-  { key: "completata", label: "Completate" },
-  { key: "in_pausa", label: "In Pausa" },
-] as const;
 
 // ── Types ─────────────────────────────────────────────────────────
 interface AggregateMetrics {
@@ -76,7 +67,6 @@ function fmtEur(n: number): string {
 export default function CampaignsPage() {
   const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
 
-  const [activeTab, setActiveTab] = useState<string>("tutte");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<string, CampaignMetrics[]>>(
@@ -86,7 +76,6 @@ export default function CampaignsPage() {
     Map<string, AggregateMetrics>
   >(new Map());
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortCol, setSortCol] = useState<SortColumn>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -166,20 +155,30 @@ export default function CampaignsPage() {
     fetchData();
   }, [orgLoading, fetchData]);
 
+  // ── Lead clients: only those in LEAD_STAGES ──────────────────
+  const leadClients = useMemo(
+    () => clients.filter((c) => LEAD_STAGES.includes(c.sales_stage)),
+    [clients]
+  );
+
   // ── Lead count from clients (filtered by dateRange) ──────────
   const leadCount = useMemo(() =>
-    clients.filter((c) => {
+    leadClients.filter((c) => {
       const d = new Date(c.created_at);
       return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
     }).length,
-    [clients, dateRange]
+    [leadClients, dateRange]
   );
 
-  // ── Filtered campaigns by tab ─────────────────────────────────
-  const filteredCampaigns = useMemo(() => {
-    if (activeTab === "tutte") return campaigns;
-    return campaigns.filter((c) => c.status === activeTab);
-  }, [campaigns, activeTab]);
+  // ── Leads by date map for daily metrics ──────────────────────
+  const leadsByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of leadClients) {
+      const key = toRomeDateStr(c.created_at);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [leadClients]);
 
   // ── Chart data for expanded campaign ──────────────────────────
   const chartData = useMemo(() => {
@@ -194,9 +193,9 @@ export default function CampaignsPage() {
         }),
         Impressions: m.impressions,
         Click: m.clicks,
-        Lead: clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length,
+        Lead: leadsByDate.get(m.date) ?? 0,
       }));
-  }, [expandedId, metricsMap, clients]);
+  }, [expandedId, metricsMap, leadsByDate]);
 
   // ── Sorted daily metrics for expanded table ───────────────────
   const sortedDailyMetrics = useMemo(() => {
@@ -223,8 +222,8 @@ export default function CampaignsPage() {
           vb = b.spend;
           break;
         case "leads":
-          va = clients.filter((c) => toRomeDateStr(c.created_at) === a.date).length;
-          vb = clients.filter((c) => toRomeDateStr(c.created_at) === b.date).length;
+          va = leadsByDate.get(a.date) ?? 0;
+          vb = leadsByDate.get(b.date) ?? 0;
           break;
         case "cpa":
           va = a.cpa ?? 0;
@@ -244,7 +243,7 @@ export default function CampaignsPage() {
       }
       return sortDir === "asc" ? va - vb : vb - va;
     });
-  }, [expandedId, metricsMap, sortCol, sortDir, clients]);
+  }, [expandedId, metricsMap, sortCol, sortDir, leadsByDate]);
 
   // ── Interactions ──────────────────────────────────────────────
   function toggleSort(col: SortColumn) {
@@ -266,42 +265,16 @@ export default function CampaignsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div>
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Campagne Marketing
           </h1>
-          <p className="text-muted-foreground">
-            Monitora e gestisci le campagne Meta Ads dei tuoi clienti.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
           <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
-          <Button
-            className="bg-primary hover:bg-primary/80"
-            onClick={() => setDialogOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova Campagna
-          </Button>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-4 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <p className="mt-2 text-muted-foreground">
+          Monitora e gestisci le campagne Meta Ads dei tuoi clienti.
+        </p>
       </div>
 
       {/* Content */}
@@ -312,36 +285,23 @@ export default function CampaignsPage() {
             Caricamento campagne...
           </p>
         </div>
-      ) : filteredCampaigns.length === 0 ? (
+      ) : campaigns.length === 0 ? (
         /* ── Empty State ──────────────────────────────────────── */
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Megaphone className="h-8 w-8 text-primary" />
           </div>
           <h3 className="mt-4 text-lg font-semibold text-foreground">
-            {activeTab === "tutte"
-              ? "Nessuna campagna ancora"
-              : "Nessuna campagna con questo filtro"}
+            Nessuna campagna ancora
           </h3>
           <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
-            {activeTab === "tutte"
-              ? "Le tue campagne Meta Ads verranno sincronizzate automaticamente da Make. Oppure crea manualmente una campagna."
-              : "Non ci sono campagne che corrispondono al filtro selezionato."}
+            Le tue campagne Meta Ads verranno sincronizzate automaticamente da Make.
           </p>
-          {activeTab === "tutte" && (
-            <Button
-              className="mt-6 bg-primary hover:bg-primary/80"
-              onClick={() => setDialogOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Crea la prima campagna
-            </Button>
-          )}
         </div>
       ) : (
         /* ── Campaign Cards ───────────────────────────────────── */
         <div className="space-y-4">
-          {filteredCampaigns.map((campaign) => {
+          {campaigns.map((campaign) => {
             const statusCfg = CAMPAIGN_STATUS_CONFIG[campaign.status];
             const agg = aggregateMap.get(campaign.id);
             const isExpanded = expandedId === campaign.id;
@@ -593,11 +553,11 @@ export default function CampaignsPage() {
                                     {fmtEur(m.spend)}
                                   </td>
                                   <td className="px-3 py-2 font-medium text-foreground">
-                                    {clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length}
+                                    {leadsByDate.get(m.date) ?? 0}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
                                     {(() => {
-                                      const dayLeads = clients.filter((c) => toRomeDateStr(c.created_at) === m.date).length;
+                                      const dayLeads = leadsByDate.get(m.date) ?? 0;
                                       return dayLeads > 0 ? `€${(m.spend / dayLeads).toFixed(2)}` : "—";
                                     })()}
                                   </td>
@@ -632,15 +592,6 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Campaign form dialog */}
-      {effectiveOrgId && (
-        <CampaignFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          organizationId={effectiveOrgId}
-          onSuccess={fetchData}
-        />
-      )}
     </div>
   );
 }

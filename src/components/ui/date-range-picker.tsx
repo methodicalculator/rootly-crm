@@ -74,10 +74,12 @@ function formatTriggerLabel(from: Date, to: Date): string {
 export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
   const [tempRange, setTempRange] = React.useState<DateRange | undefined>(undefined);
+  const [showMobileCalendar, setShowMobileCalendar] = React.useState(false);
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       setTempRange(undefined);
+      setShowMobileCalendar(false);
     }
     setOpen(nextOpen);
   }
@@ -104,9 +106,9 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
           {formatTriggerLabel(from, to)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end">
-        <div className="flex">
-          {/* Presets */}
+      <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] p-0" align="end" collisionPadding={16}>
+        {/* Desktop: side-by-side presets + 2-month calendar */}
+        <div className="hidden sm:flex">
           <div className="flex w-40 flex-col gap-1 border-r p-3">
             {presets.map((preset) => (
               <Button
@@ -120,7 +122,6 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
               </Button>
             ))}
           </div>
-          {/* Calendar */}
           <Calendar
             mode="range"
             selected={tempRange}
@@ -130,6 +131,44 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
             weekStartsOn={1}
             min={1}
           />
+        </div>
+
+        {/* Mobile: presets only + "Personalizzato" toggle for 1-month calendar */}
+        <div className="sm:hidden">
+          <div className="flex flex-col gap-0.5 p-2">
+            {presets.map((preset) => (
+              <Button
+                key={preset.label}
+                variant="ghost"
+                size="sm"
+                className="justify-start text-sm"
+                onClick={() => handlePreset(preset)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+            <Button
+              variant={showMobileCalendar ? "secondary" : "ghost"}
+              size="sm"
+              className="justify-start text-sm"
+              onClick={() => setShowMobileCalendar(!showMobileCalendar)}
+            >
+              Personalizzato...
+            </Button>
+          </div>
+          {showMobileCalendar && (
+            <div className="border-t px-1 pb-2">
+              <Calendar
+                mode="range"
+                selected={tempRange}
+                onSelect={handleCalendarSelect}
+                numberOfMonths={1}
+                locale={it}
+                weekStartsOn={1}
+                min={1}
+              />
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

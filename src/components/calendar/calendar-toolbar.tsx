@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ToolbarProps, View } from "react-big-calendar";
 
 const VIEW_LABELS: Record<string, string> = {
+  day: "Giorno",
   week: "Settimana",
   month: "Mese",
 };
@@ -12,6 +14,20 @@ const VIEW_LABELS: Record<string, string> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function CalendarToolbar(props: ToolbarProps<any, any>) {
   const { label, onNavigate, onView, view } = props;
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const viewOptions: View[] = isMobile
+    ? ["day"]
+    : ["week", "month"];
 
   return (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -30,19 +46,21 @@ export function CalendarToolbar(props: ToolbarProps<any, any>) {
         </span>
       </div>
 
-      <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-        {(["week", "month"] as View[]).map((v) => (
-          <Button
-            key={v}
-            variant={view === v ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onView(v)}
-            className="text-xs"
-          >
-            {VIEW_LABELS[v]}
-          </Button>
-        ))}
-      </div>
+      {!isMobile && (
+        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+          {viewOptions.map((v) => (
+            <Button
+              key={v}
+              variant={view === v ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onView(v)}
+              className="text-xs"
+            >
+              {VIEW_LABELS[v] ?? v}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

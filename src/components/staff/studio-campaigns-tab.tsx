@@ -21,18 +21,14 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
+import { LEAD_STAGES } from "@/lib/constants/stages";
 import { toRomeDateStr } from "@/lib/date-utils";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Campaign, CampaignMetrics } from "@/types";
-
-const tabs = [
-  { key: "tutte", label: "Tutte" },
-  { key: "attiva", label: "Attive" },
-  { key: "completata", label: "Completate" },
-  { key: "in_pausa", label: "In Pausa" },
-] as const;
 
 interface AggregateMetrics {
   totalImpressions: number;
@@ -67,10 +63,12 @@ function fmtEur(n: number): string {
 }
 
 export function StudioCampaignsTab({ organizationId }: { organizationId: string }) {
-  const [activeTab, setActiveTab] = useState<string>("tutte");
+  const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 29), to: new Date() });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<string, CampaignMetrics[]>>(new Map());
   const [aggregateMap, setAggregateMap] = useState<Map<string, AggregateMetrics>>(new Map());
+  const [orgLeadCount, setOrgLeadCount] = useState(0);
+  const [leadsByDate, setLeadsByDate] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortCol, setSortCol] = useState<SortColumn>("date");
@@ -80,9 +78,36 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
     setLoading(true);
     const supabase = createClient();
 
-    const { data: campaignsData } = await getCampaigns(organizationId, false);
-    const allCampaigns = (campaignsData ?? []) as Campaign[];
+    const fromISO = startOfDay(dateRange.from).toISOString();
+    const toISO = endOfDay(dateRange.to).toISOString();
+    const fromDate = toRomeDateStr(dateRange.from);
+    const toDate = toRomeDateStr(dateRange.to);
+
+    // Fetch campaigns + lead clients from clients table in parallel
+    const [campaignsRes, leadsRes] = await Promise.all([
+      getCampaigns(organizationId, false),
+      supabase
+        .from("clients")
+        .select("id, created_at")
+        .eq("organization_id", organizationId)
+        .in("sales_stage", [...LEAD_STAGES])
+        .gte("created_at", fromISO)
+        .lte("created_at", toISO),
+    ]);
+
+    const allCampaigns = (campaignsRes.data ?? []) as Campaign[];
     setCampaigns(allCampaigns);
+
+    const leadRows = (leadsRes.data ?? []) as { id: string; created_at: string }[];
+    setOrgLeadCount(leadRows.length);
+
+    // Build leads-by-date map
+    const lbd = new Map<string, number>();
+    for (const row of leadRows) {
+      const key = toRomeDateStr(row.created_at);
+      lbd.set(key, (lbd.get(key) ?? 0) + 1);
+    }
+    setLeadsByDate(lbd);
 
     if (allCampaigns.length === 0) {
       setMetricsMap(new Map());
@@ -91,16 +116,14 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
       return;
     }
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     const campaignIds = allCampaigns.map((c) => c.id);
 
     const { data: metricsData } = await supabase
       .from("campaign_metrics")
       .select("*")
       .in("campaign_id", campaignIds)
-      .gte("date", toRomeDateStr(thirtyDaysAgo))
+      .gte("date", fromDate)
+      .lte("date", toDate)
       .order("date", { ascending: false });
 
     const allMetrics = (metricsData ?? []) as CampaignMetrics[];
@@ -130,16 +153,11 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
     }
     setAggregateMap(aggs);
     setLoading(false);
-  }, [organizationId]);
+  }, [organizationId, dateRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const filteredCampaigns = useMemo(() => {
-    if (activeTab === "tutte") return campaigns;
-    return campaigns.filter((c) => c.status === activeTab);
-  }, [campaigns, activeTab]);
 
   const chartData = useMemo(() => {
     if (!expandedId) return [];
@@ -153,9 +171,9 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
         }),
         Impressions: m.impressions,
         Click: m.clicks,
-        Lead: m.leads,
+        Lead: leadsByDate.get(m.date) ?? 0,
       }));
-  }, [expandedId, metricsMap]);
+  }, [expandedId, metricsMap, leadsByDate]);
 
   const sortedDailyMetrics = useMemo(() => {
     if (!expandedId) return [];
@@ -181,8 +199,8 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
           vb = b.spend;
           break;
         case "leads":
-          va = a.leads;
-          vb = b.leads;
+          va = leadsByDate.get(a.date) ?? 0;
+          vb = leadsByDate.get(b.date) ?? 0;
           break;
         case "cpa":
           va = a.cpa ?? 0;
@@ -202,7 +220,7 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
       }
       return sortDir === "asc" ? va - vb : vb - va;
     });
-  }, [expandedId, metricsMap, sortCol, sortDir]);
+  }, [expandedId, metricsMap, sortCol, sortDir, leadsByDate]);
 
   function toggleSort(col: SortColumn) {
     if (sortCol === col) {
@@ -221,21 +239,9 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex items-center gap-4 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Date Range Picker */}
+      <div className="flex items-center justify-end">
+        <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
       </div>
 
       {/* Content */}
@@ -244,29 +250,29 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">Caricamento campagne...</p>
         </div>
-      ) : filteredCampaigns.length === 0 ? (
+      ) : campaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Megaphone className="h-8 w-8 text-primary" />
           </div>
           <h3 className="mt-4 text-lg font-semibold text-foreground">
-            {activeTab === "tutte"
-              ? "Nessuna campagna ancora"
-              : "Nessuna campagna con questo filtro"}
+            Nessuna campagna ancora
           </h3>
           <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
-            {activeTab === "tutte"
-              ? "Le campagne Meta Ads verranno sincronizzate automaticamente."
-              : "Non ci sono campagne che corrispondono al filtro selezionato."}
+            Le campagne Meta Ads verranno sincronizzate automaticamente.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredCampaigns.map((campaign) => {
+          {campaigns.map((campaign) => {
             const statusCfg = CAMPAIGN_STATUS_CONFIG[campaign.status];
             const agg = aggregateMap.get(campaign.id);
             const isExpanded = expandedId === campaign.id;
             const hasMetrics = !!agg;
+
+            // Use org-wide lead count from clients table
+            const leadCount = orgLeadCount;
+            const cpa = leadCount > 0 && agg ? agg.totalSpend / leadCount : 0;
 
             return (
               <Card key={campaign.id} className="overflow-hidden bg-card shadow-sm">
@@ -309,11 +315,11 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
 
                     {hasMetrics ? (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                        <MetricBox label="Lead" value={fmtNum(agg.totalLeads)} />
+                        <MetricBox label="Lead" value={fmtNum(leadCount)} />
                         <MetricBox label="Spesa" value={fmtEur(agg.totalSpend)} />
                         <MetricBox
                           label="CPA"
-                          value={agg.avgCpa > 0 ? `€${agg.avgCpa.toFixed(2)}` : "—"}
+                          value={cpa > 0 ? `€${cpa.toFixed(2)}` : "—"}
                         />
                         <MetricBox
                           label="CTR"
@@ -323,7 +329,7 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
                       </div>
                     ) : (
                       <p className="mt-3 text-sm italic text-muted-foreground">
-                        Nessuna metrica negli ultimi 30 giorni
+                        Nessuna metrica nel periodo selezionato
                       </p>
                     )}
 
@@ -354,7 +360,7 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
                       {chartData.length > 0 && (
                         <div>
                           <h4 className="mb-3 text-sm font-semibold text-foreground">
-                            Andamento ultimi 30 giorni
+                            Andamento periodo selezionato
                           </h4>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
@@ -407,13 +413,13 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
                             <thead>
                               <tr className="border-b border-border bg-muted">
                                 <SortableHeader label="Data" column="date" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
-                                <SortableHeader label="Impressions" column="impressions" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
-                                <SortableHeader label="Click" column="clicks" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
-                                <SortableHeader label="Spend" column="spend" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Spesa" column="spend" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                                 <SortableHeader label="Lead" column="leads" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                                 <SortableHeader label="CPA" column="cpa" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                                 <SortableHeader label="CTR" column="ctr" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                                 <SortableHeader label="CPM" column="cpm" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Click" column="clicks" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
+                                <SortableHeader label="Impressions" column="impressions" currentCol={sortCol} dir={sortDir} onSort={toggleSort} />
                               </tr>
                             </thead>
                             <tbody>
@@ -426,25 +432,28 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
                                     {new Date(m.date).toLocaleDateString("it-IT")}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.impressions.toLocaleString("it-IT")}
-                                  </td>
-                                  <td className="px-3 py-2 text-muted-foreground">
-                                    {m.clicks.toLocaleString("it-IT")}
-                                  </td>
-                                  <td className="px-3 py-2 text-muted-foreground">
                                     {fmtEur(m.spend)}
                                   </td>
                                   <td className="px-3 py-2 font-medium text-foreground">
-                                    {m.leads}
+                                    {leadsByDate.get(m.date) ?? 0}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
-                                    {m.cpa != null ? `€${m.cpa.toFixed(2)}` : "—"}
+                                    {(() => {
+                                      const dayLeads = leadsByDate.get(m.date) ?? 0;
+                                      return dayLeads > 0 ? `€${(m.spend / dayLeads).toFixed(2)}` : "—";
+                                    })()}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
                                     {m.ctr != null ? `${m.ctr.toFixed(2)}%` : "—"}
                                   </td>
                                   <td className="px-3 py-2 text-muted-foreground">
                                     {m.cpm != null ? `€${m.cpm.toFixed(2)}` : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground">
+                                    {m.clicks.toLocaleString("it-IT")}
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground">
+                                    {m.impressions.toLocaleString("it-IT")}
                                   </td>
                                 </tr>
                               ))}
