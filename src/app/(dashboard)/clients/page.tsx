@@ -3,13 +3,14 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Users, Plus, Loader2, Mail, Phone } from "lucide-react";
+import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
 import { IN_LAVORAZIONE_STAGES } from "@/lib/constants/stages";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
+import { ClientDetailSheet } from "@/components/clients/client-detail-sheet";
 import type { Client, SalesStage } from "@/types";
 
 const tabs = [
@@ -30,6 +31,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const highlightRef = useRef<HTMLTableRowElement>(null);
   const hasScrolled = useRef(false);
 
@@ -175,9 +177,16 @@ export default function ClientsPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="font-medium text-foreground">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClient(client)}
+                          className="flex items-center gap-1.5 text-left font-medium text-foreground cursor-pointer hover:text-primary hover:underline"
+                        >
                           {client.nome} {client.cognome}
-                        </span>
+                          {client.note && (
+                            <StickyNote className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                          )}
+                        </button>
                         {client.service_interest && (
                           <span className="text-xs text-muted-foreground">
                             {client.service_interest}
@@ -243,12 +252,23 @@ export default function ClientsPage() {
       )}
 
       {effectiveOrgId && (
-        <ClientFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          organizationId={effectiveOrgId}
-          onSuccess={fetchClients}
-        />
+        <>
+          <ClientFormDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            organizationId={effectiveOrgId}
+            onSuccess={fetchClients}
+          />
+          <ClientDetailSheet
+            client={selectedClient}
+            onOpenChange={(open) => { if (!open) setSelectedClient(null); }}
+            organizationId={effectiveOrgId}
+            onClientUpdated={(updated) => {
+              setClients((prev) => prev.map((c) => c.id === updated.id ? updated : c));
+              setSelectedClient(updated);
+            }}
+          />
+        </>
       )}
     </div>
   );

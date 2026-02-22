@@ -55,6 +55,22 @@ export const campaignFormSchema = z.object({
 
 export type CampaignFormValues = z.infer<typeof campaignFormSchema>;
 
+export const clientEditSchema = z.object({
+  nome: z.string().min(1, "Il nome è obbligatorio"),
+  cognome: z.string().min(1, "Il cognome è obbligatorio"),
+  email: z.string().email("Email non valida").or(z.literal("")).optional(),
+  telefono: z.string().optional(),
+  indirizzo: z.string().optional(),
+  citta: z.string().optional(),
+  cap: z.string().max(5).optional(),
+  birth_date: z.string().optional(),
+  service_interest: z.string().optional(),
+  note: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export type ClientEditValues = z.infer<typeof clientEditSchema>;
+
 export const appointmentFormSchema = z.object({
   date: z.date({ error: "Seleziona una data" }),
   time: z.string().min(1, "Seleziona un orario"),
