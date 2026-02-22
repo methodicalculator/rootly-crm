@@ -11,6 +11,19 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   UserPlus,
   UserCheck,
   Wallet,
@@ -23,7 +36,9 @@ import {
   Phone,
   Briefcase,
   Clock,
-  Check,
+  PhoneOff,
+  CalendarPlus,
+  XCircle,
 } from "lucide-react";
 import {
   LineChart,
@@ -37,11 +52,13 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_STAGES } from "@/lib/constants/stages";
+import { LOST_REASON_CONFIG } from "@/lib/constants";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import type { Client, AppointmentWithClient } from "@/types";
+import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
+import type { Client, AppointmentWithClient, LostReason } from "@/types";
 
 interface LeadChartPoint {
   giorno: string;
@@ -74,8 +91,13 @@ function DashboardContent() {
   const [upcomingAppointments, setUpcomingAppointments] = useState<AppointmentWithClient[]>([]);
   const [leadsToContact, setLeadsToContact] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [contactingId, setContactingId] = useState<string | null>(null);
   const [viewOrgName, setViewOrgName] = useState<string | null>(null);
+
+  // Lead action modal state
+  const [actionLead, setActionLead] = useState<Client | null>(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
+  const [showLostReason, setShowLostReason] = useState(false);
 
   const fetchLeadsToContact = useCallback(async () => {
     const supabase = createClient();
@@ -245,29 +267,80 @@ function DashboardContent() {
     fetchLeadsToContact();
   }, [queryOrgId, isAdmin, orgLoading, fetchLeadsToContact, isViewMode, viewOrgId]);
 
-  async function markAsContacted(clientId: string) {
-    setContactingId(clientId);
+  function openActionModal(lead: Client) {
+    setActionLead(lead);
+    setShowLostReason(false);
+    setShowAppointmentDialog(false);
+  }
+
+  function closeActionModal() {
+    setActionLead(null);
+    setShowLostReason(false);
+  }
+
+  async function handleNonRisponde() {
+    if (!actionLead) return;
+    setActionSaving(true);
     try {
       const supabase = createClient();
+      const { error } = await supabase
+        .from("clients")
+        .update({ sales_stage: "contacted", contacted_at: new Date().toISOString() })
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Lead segnato come Non Risponde");
+      closeActionModal();
+      await fetchLeadsToContact();
+    } finally {
+      setActionSaving(false);
+    }
+  }
 
-      const now = new Date().toISOString();
+  function handleAppuntamentoFissato() {
+    setShowAppointmentDialog(true);
+  }
+
+  async function handleAppointmentSaved(appointmentDateISO: string) {
+    if (!actionLead) return;
+    setShowAppointmentDialog(false);
+    setActionSaving(true);
+    try {
+      const supabase = createClient();
       const { error } = await supabase
         .from("clients")
         .update({
-          sales_stage: "contacted",
-          contacted_at: now,
+          sales_stage: "appointment_scheduled",
+          appointment_date: appointmentDateISO,
         })
-        .eq("id", clientId);
-
-      if (error) {
-        toast.error("Errore durante l'aggiornamento");
-        return;
-      }
-
-      toast.success("Lead segnato come contattato!");
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Appuntamento fissato!");
+      closeActionModal();
       await fetchLeadsToContact();
     } finally {
-      setContactingId(null);
+      setActionSaving(false);
+    }
+  }
+
+  function handlePerso() {
+    setShowLostReason(true);
+  }
+
+  async function handleLostReasonSelect(reason: string) {
+    if (!actionLead) return;
+    setActionSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("clients")
+        .update({ sales_stage: "lost", lost_reason: reason })
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Lead segnato come Perso");
+      closeActionModal();
+      await fetchLeadsToContact();
+    } finally {
+      setActionSaving(false);
     }
   }
 
@@ -606,16 +679,10 @@ function DashboardContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full hover:bg-green-50 hover:text-green-700 hover:border-green-200 dark:hover:bg-green-950/30 dark:hover:text-green-400 dark:hover:border-green-800"
-                          disabled={contactingId === lead.id}
-                          onClick={() => markAsContacted(lead.id)}
+                          className="w-full"
+                          onClick={() => openActionModal(lead)}
                         >
-                          {contactingId === lead.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="mr-2 h-4 w-4" />
-                          )}
-                          Segna come Contattato
+                          Aggiorna Stato
                         </Button>
                       </div>
                     )}
@@ -626,6 +693,97 @@ function DashboardContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lead Action Modal */}
+      <Dialog open={!!actionLead && !showAppointmentDialog} onOpenChange={(open) => { if (!open) closeActionModal(); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {actionLead ? `${actionLead.nome} ${actionLead.cognome}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {!showLostReason ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  disabled={actionSaving}
+                  onClick={handleNonRisponde}
+                >
+                  {actionSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PhoneOff className="h-4 w-4 text-blue-500" />
+                  )}
+                  Non Risponde
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={handleAppuntamentoFissato}
+                >
+                  <CalendarPlus className="h-4 w-4 text-orange-500" />
+                  Appuntamento Fissato
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={handlePerso}
+                >
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  Perso
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Seleziona il motivo:</p>
+                <Select
+                  onValueChange={handleLostReasonSelect}
+                  disabled={actionSaving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Motivo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(LOST_REASON_CONFIG) as LostReason[]).map((reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {LOST_REASON_CONFIG[reason].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setShowLostReason(false)}
+                >
+                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                  Indietro
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Appointment Form Dialog (reused from clients) */}
+      {actionLead && (
+        <AppointmentFormDialog
+          open={showAppointmentDialog}
+          onOpenChange={(open) => {
+            setShowAppointmentDialog(open);
+            if (!open && actionLead) {
+              // Re-show the action modal if appointment was cancelled
+            }
+          }}
+          organizationId={queryOrgId ?? ""}
+          clientId={actionLead.id}
+          clientName={`${actionLead.nome} ${actionLead.cognome}`}
+          onSuccess={handleAppointmentSaved}
+        />
+      )}
     </div>
   );
 }

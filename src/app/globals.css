@@ -260,3 +260,11 @@
   border-right: none;
   margin-right: 0 !important;
 }
+
+/* Scrollbar-hide utility */
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

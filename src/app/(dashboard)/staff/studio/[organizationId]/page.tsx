@@ -78,11 +78,11 @@ export default function StaffStudioPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="analytics">Analisi Lead</TabsTrigger>
-          <TabsTrigger value="campaigns">Campagne Marketing</TabsTrigger>
-          <TabsTrigger value="report">Report</TabsTrigger>
+        <TabsList className="w-full overflow-x-auto scrollbar-hide">
+          <TabsTrigger value="dashboard" className="min-w-[100px]">Dashboard</TabsTrigger>
+          <TabsTrigger value="analytics" className="min-w-[110px]">Analisi Lead</TabsTrigger>
+          <TabsTrigger value="campaigns" className="min-w-[160px]">Campagne Marketing</TabsTrigger>
+          <TabsTrigger value="report" className="min-w-[80px]">Report</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">

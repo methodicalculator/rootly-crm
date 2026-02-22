@@ -7,6 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   UserPlus,
   UserCheck,
@@ -17,6 +31,10 @@ import {
   Phone,
   Briefcase,
   Clock,
+  PhoneOff,
+  CalendarPlus,
+  XCircle,
+  ArrowLeft,
 } from "lucide-react";
 import {
   LineChart,
@@ -29,10 +47,13 @@ import {
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_STAGES } from "@/lib/constants/stages";
+import { LOST_REASON_CONFIG } from "@/lib/constants";
 import { toRomeDateStr, startOfMonthRomeISO } from "@/lib/date-utils";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import type { Client } from "@/types";
+import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
+import type { Client, LostReason } from "@/types";
 
 interface LeadChartPoint {
   giorno: string;
@@ -47,6 +68,12 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
   const [leadChartData, setLeadChartData] = useState<LeadChartPoint[]>([]);
   const [leadsToContact, setLeadsToContact] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Lead action modal state
+  const [actionLead, setActionLead] = useState<Client | null>(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
+  const [showLostReason, setShowLostReason] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orgFilter = (q: any) => q.eq("organization_id", organizationId);
@@ -168,6 +195,83 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
     fetchAll();
     fetchLeadsToContact();
   }, [organizationId, fetchLeadsToContact]);
+
+  function openActionModal(lead: Client) {
+    setActionLead(lead);
+    setShowLostReason(false);
+    setShowAppointmentDialog(false);
+  }
+
+  function closeActionModal() {
+    setActionLead(null);
+    setShowLostReason(false);
+  }
+
+  async function handleNonRisponde() {
+    if (!actionLead) return;
+    setActionSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("clients")
+        .update({ sales_stage: "contacted", contacted_at: new Date().toISOString() })
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Lead segnato come Non Risponde");
+      closeActionModal();
+      await fetchLeadsToContact();
+    } finally {
+      setActionSaving(false);
+    }
+  }
+
+  function handleAppuntamentoFissato() {
+    setShowAppointmentDialog(true);
+  }
+
+  async function handleAppointmentSaved(appointmentDateISO: string) {
+    if (!actionLead) return;
+    setShowAppointmentDialog(false);
+    setActionSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          sales_stage: "appointment_scheduled",
+          appointment_date: appointmentDateISO,
+        })
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Appuntamento fissato!");
+      closeActionModal();
+      await fetchLeadsToContact();
+    } finally {
+      setActionSaving(false);
+    }
+  }
+
+  function handlePerso() {
+    setShowLostReason(true);
+  }
+
+  async function handleLostReasonSelect(reason: string) {
+    if (!actionLead) return;
+    setActionSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("clients")
+        .update({ sales_stage: "lost", lost_reason: reason })
+        .eq("id", actionLead.id);
+      if (error) { toast.error("Errore durante l'aggiornamento"); return; }
+      toast.success("Lead segnato come Perso");
+      closeActionModal();
+      await fetchLeadsToContact();
+    } finally {
+      setActionSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -365,12 +469,110 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
                       </div>
                     </div>
                   </div>
+                  <div className="mt-3 border-t border-border pt-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => openActionModal(lead)}
+                    >
+                      Aggiorna Stato
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Lead Action Modal */}
+      <Dialog open={!!actionLead && !showAppointmentDialog} onOpenChange={(open) => { if (!open) closeActionModal(); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {actionLead ? `${actionLead.nome} ${actionLead.cognome}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {!showLostReason ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  disabled={actionSaving}
+                  onClick={handleNonRisponde}
+                >
+                  {actionSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PhoneOff className="h-4 w-4 text-blue-500" />
+                  )}
+                  Non Risponde
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={handleAppuntamentoFissato}
+                >
+                  <CalendarPlus className="h-4 w-4 text-orange-500" />
+                  Appuntamento Fissato
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={handlePerso}
+                >
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  Perso
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Seleziona il motivo:</p>
+                <Select
+                  onValueChange={handleLostReasonSelect}
+                  disabled={actionSaving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Motivo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(LOST_REASON_CONFIG) as LostReason[]).map((reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {LOST_REASON_CONFIG[reason].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setShowLostReason(false)}
+                >
+                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                  Indietro
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Appointment Form Dialog */}
+      {actionLead && (
+        <AppointmentFormDialog
+          open={showAppointmentDialog}
+          onOpenChange={(open) => {
+            setShowAppointmentDialog(open);
+          }}
+          organizationId={organizationId}
+          clientId={actionLead.id}
+          clientName={`${actionLead.nome} ${actionLead.cognome}`}
+          onSuccess={handleAppointmentSaved}
+        />
+      )}
     </div>
   );
 }
