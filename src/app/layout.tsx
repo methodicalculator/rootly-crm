@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   description: "CRM per agenzie marketing specializzate in terapie manuali",
   icons: {
     icon: "/logo_horizon.png",
+    apple: "/logo_horizon.png",
   },
   openGraph: {
     title: "Horizon One CRM",
