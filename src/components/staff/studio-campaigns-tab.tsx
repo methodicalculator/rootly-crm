@@ -25,7 +25,7 @@ import { subDays, startOfDay, endOfDay } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
-import { LEAD_STAGES } from "@/lib/constants/stages";
+
 import { toRomeDateStr } from "@/lib/date-utils";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Campaign, CampaignMetrics } from "@/types";
@@ -90,7 +90,6 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
         .from("clients")
         .select("id, created_at")
         .eq("organization_id", organizationId)
-        .in("sales_stage", [...LEAD_STAGES])
         .gte("created_at", fromISO)
         .lte("created_at", toISO),
     ]);

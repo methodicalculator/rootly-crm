@@ -17,7 +17,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { getCampaigns, getClients } from "@/lib/supabase/queries";
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
-import { LEAD_STAGES } from "@/lib/constants/stages";
+
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { toRomeDateStr } from "@/lib/date-utils";
 import { subDays, startOfDay, endOfDay } from "date-fns";
@@ -147,30 +147,24 @@ export default function CampaignsPage() {
     fetchData();
   }, [orgLoading, fetchData]);
 
-  // ── Lead clients: only those in LEAD_STAGES ──────────────────
-  const leadClients = useMemo(
-    () => clients.filter((c) => LEAD_STAGES.includes(c.sales_stage)),
-    [clients]
-  );
-
-  // ── Lead count from clients (filtered by dateRange) ──────────
+  // ── Lead count from clients (filtered by dateRange, any sales_stage) ──
   const leadCount = useMemo(() =>
-    leadClients.filter((c) => {
+    clients.filter((c) => {
       const d = new Date(c.created_at);
       return d >= startOfDay(dateRange.from) && d <= endOfDay(dateRange.to);
     }).length,
-    [leadClients, dateRange]
+    [clients, dateRange]
   );
 
   // ── Leads by date map for daily metrics ──────────────────────
   const leadsByDate = useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of leadClients) {
+    for (const c of clients) {
       const key = toRomeDateStr(c.created_at);
       map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
-  }, [leadClients]);
+  }, [clients]);
 
   // ── Sorted daily metrics for expanded table ───────────────────
   const sortedDailyMetrics = useMemo(() => {
