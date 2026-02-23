@@ -783,6 +783,7 @@ function DashboardContent() {
           organizationId={queryOrgId ?? ""}
           clientId={actionLead.id}
           clientName={`${actionLead.nome} ${actionLead.cognome}`}
+          clientNote={actionLead.note}
           onSuccess={handleAppointmentSaved}
         />
       )}

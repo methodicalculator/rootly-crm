@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,10 +11,9 @@ import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
 import { ClientDetailSheet } from "@/components/clients/client-detail-sheet";
-import type { Client, SalesStage } from "@/types";
+import type { Client } from "@/types";
 
 const tabs = [
-  { key: "tutti", label: "Tutti" },
   { key: "new", label: "Nuovi Lead" },
   { key: "contacted", label: "Non Risponde" },
   { key: "appointment_scheduled", label: "Appuntamento Fissato" },
@@ -23,10 +22,17 @@ const tabs = [
   { key: "lost", label: "Persi" },
 ] as const;
 
+const TAB_KEYS = tabs.map((t) => t.key as string);
+
 export default function ClientsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const highlightId = searchParams.get("highlight");
-  const [activeTab, setActiveTab] = useState<string>(highlightId ? "tutti" : "new");
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<string>(
+    tabFromUrl && TAB_KEYS.includes(tabFromUrl) ? tabFromUrl : "new"
+  );
   const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,32 +61,40 @@ export default function ClientsPage() {
     }
   }, [highlightId, loading]);
 
+  // When navigating via highlight, switch to the highlighted client's tab
+  useEffect(() => {
+    if (highlightId && !loading && clients.length > 0) {
+      const highlighted = clients.find((c) => c.id === highlightId);
+      if (highlighted) {
+        const stage = highlighted.sales_stage ?? "new";
+        setActiveTab(stage);
+      }
+    }
+  }, [highlightId, loading, clients]);
+
+  function handleTabChange(tab: string) {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = { tutti: clients.length };
+    const counts: Record<string, number> = {};
     for (const c of clients) {
       const stage = c.sales_stage ?? "new";
-      if (stage === "new") counts.new = (counts.new ?? 0) + 1;
-      else if (stage === "contacted") counts.contacted = (counts.contacted ?? 0) + 1;
-      else if (stage === "appointment_completed")
-        counts.appointment_completed = (counts.appointment_completed ?? 0) + 1;
-      else if (stage === "converted") counts.converted = (counts.converted ?? 0) + 1;
-      else if (stage === "lost") counts.lost = (counts.lost ?? 0) + 1;
-      else if (stage === "appointment_scheduled")
-        counts.appointment_scheduled = (counts.appointment_scheduled ?? 0) + 1;
+      counts[stage] = (counts[stage] ?? 0) + 1;
     }
     return counts;
   }, [clients]);
 
   const filteredClients = useMemo(() => {
-    if (activeTab === "tutti") return clients;
     return clients.filter((c) => (c.sales_stage ?? "new") === activeTab);
   }, [clients, activeTab]);
 
-  function handleStageChange(clientId: string, newStage: SalesStage) {
+  function handleStageChange(updatedClient: Client) {
     setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId ? { ...c, sales_stage: newStage } : c
-      )
+      prev.map((c) => c.id === updatedClient.id ? updatedClient : c)
     );
   }
 
@@ -106,7 +120,7 @@ export default function ClientsPage() {
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "border-primary text-primary"
@@ -132,11 +146,11 @@ export default function ClientsPage() {
             Nessun lead trovato
           </h3>
           <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
-            {activeTab === "tutti"
+            {clients.length === 0
               ? "Inizia aggiungendo il tuo primo lead. Potrai gestire le campagne, monitorare le performance e pianificare le comunicazioni."
               : "Nessun lead con questo filtro."}
           </p>
-          {activeTab === "tutti" && (
+          {clients.length === 0 && (
             <Button
               className="mt-6 bg-primary hover:bg-primary/80"
               onClick={() => setDialogOpen(true)}
@@ -222,10 +236,11 @@ export default function ClientsPage() {
                         clientId={client.id}
                         currentStage={client.sales_stage ?? "new"}
                         currentRevenue={client.revenue}
-                        onStageChange={(stage) => handleStageChange(client.id, stage)}
+                        onStageChange={handleStageChange}
                         onRevenueChange={(rev) => setClients((prev) => prev.map((c) => c.id === client.id ? { ...c, revenue: rev } : c))}
                         organizationId={client.organization_id!}
                         clientName={`${client.nome} ${client.cognome}`}
+                        clientNote={client.note}
                       />
                     </td>
                     <td className="hidden px-4 py-3 lg:table-cell">

@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import { REVENUE_STAGES, STAGE_ORDER } from "@/lib/constants/stages";
 import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
-import type { SalesStage, LostReason } from "@/types";
+import type { Client, SalesStage, LostReason } from "@/types";
 
 const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
   appointment_scheduled: "App. Fissato",
@@ -34,10 +34,11 @@ interface SalesPipelineSelectProps {
   clientId: string;
   currentStage: SalesStage;
   currentRevenue?: number | null;
-  onStageChange: (newStage: SalesStage) => void;
+  onStageChange: (updatedClient: Client) => void;
   onRevenueChange?: (newRevenue: number) => void;
   organizationId: string;
   clientName: string;
+  clientNote?: string | null;
 }
 
 const LOST_REASONS: LostReason[] = [
@@ -55,6 +56,7 @@ export function SalesPipelineSelect({
   onRevenueChange,
   organizationId,
   clientName,
+  clientNote,
 }: SalesPipelineSelectProps) {
   const [updating, setUpdating] = useState(false);
   const [showLostReason, setShowLostReason] = useState(false);
@@ -118,10 +120,12 @@ export function SalesPipelineSelect({
           .eq("status", "scheduled");
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("clients")
         .update(updates)
-        .eq("id", clientId);
+        .eq("id", clientId)
+        .select()
+        .single();
 
       if (error) {
         console.error("[STAGE-UPDATE] Supabase error:", error.message, error.details, { clientId, updates });
@@ -131,7 +135,7 @@ export function SalesPipelineSelect({
 
       const cfg = SALES_STAGE_CONFIG[newStage];
       toast.success(`${cfg.emoji} Stato aggiornato: ${cfg.label}`);
-      onStageChange(newStage);
+      onStageChange(data as Client);
     } finally {
       setUpdating(false);
       setShowLostReason(false);
@@ -323,6 +327,7 @@ export function SalesPipelineSelect({
         organizationId={organizationId}
         clientId={clientId}
         clientName={clientName}
+        clientNote={clientNote}
         onSuccess={handleAppointmentSaved}
       />
 

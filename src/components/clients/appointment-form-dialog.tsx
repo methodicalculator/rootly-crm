@@ -42,6 +42,7 @@ interface AppointmentFormDialogProps {
   organizationId: string;
   clientId: string;
   clientName: string;
+  clientNote?: string | null;
   onSuccess: (appointmentDateISO: string) => void;
 }
 
@@ -51,6 +52,7 @@ export function AppointmentFormDialog({
   organizationId,
   clientId,
   clientName,
+  clientNote,
   onSuccess,
 }: AppointmentFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
@@ -78,7 +80,7 @@ export function AppointmentFormDialog({
           title: `Appuntamento - ${clientName}`,
           start_time: startISO,
           end_time: endISO,
-          notes: values.notes || null,
+          notes: [clientNote, values.notes].filter(Boolean).join("\n") || null,
         },
         organizationId
       );

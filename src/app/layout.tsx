@@ -13,6 +13,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Horizon One CRM",
   description: "CRM per agenzie marketing specializzate in terapie manuali",
+  icons: {
+    icon: "/logo_horizon.png",
+  },
   openGraph: {
     title: "Horizon One CRM",
     description: "CRM per agenzie marketing specializzate in terapie manuali",

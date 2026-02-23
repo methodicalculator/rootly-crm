@@ -572,6 +572,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           organizationId={organizationId}
           clientId={actionLead.id}
           clientName={`${actionLead.nome} ${actionLead.cognome}`}
+          clientNote={actionLead.note}
           onSuccess={handleAppointmentSaved}
         />
       )}
