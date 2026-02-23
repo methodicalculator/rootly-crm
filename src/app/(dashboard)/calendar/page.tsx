@@ -213,7 +213,7 @@ export default function CalendarPage() {
                     </div>
                     {notes && (
                       <div className="text-[0.6875rem] opacity-75 truncate mt-0.5">
-                        Note: {notes}
+                        {notes}
                       </div>
                     )}
                   </div>

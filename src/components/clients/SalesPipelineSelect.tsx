@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -35,6 +35,7 @@ interface SalesPipelineSelectProps {
   currentStage: SalesStage;
   currentRevenue?: number | null;
   onStageChange: (newStage: SalesStage) => void;
+  onRevenueChange?: (newRevenue: number) => void;
   organizationId: string;
   clientName: string;
 }
@@ -51,6 +52,7 @@ export function SalesPipelineSelect({
   currentStage,
   currentRevenue,
   onStageChange,
+  onRevenueChange,
   organizationId,
   clientName,
 }: SalesPipelineSelectProps) {
@@ -62,16 +64,9 @@ export function SalesPipelineSelect({
   const [convertedSessions, setConvertedSessions] = useState("");
   const [showSingolaSedutaDialog, setShowSingolaSedutaDialog] = useState(false);
   const [singolaSedutaImporto, setSingolaSedutaImporto] = useState("");
-  const [revenueValue, setRevenueValue] = useState(
-    currentRevenue != null ? String(currentRevenue) : ""
-  );
+  const [revenueValue, setRevenueValue] = useState("");
   const [revenueSaved, setRevenueSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>(null);
-
-  // Sync if parent prop changes
-  useEffect(() => {
-    setRevenueValue(currentRevenue != null ? String(currentRevenue) : "");
-  }, [currentRevenue]);
   async function updateStage(
     newStage: SalesStage,
     lostReason?: LostReason,
@@ -286,24 +281,27 @@ export function SalesPipelineSelect({
               type="text"
               inputMode="numeric"
               value={revenueValue}
-              placeholder="Importo"
-              className="h-7 w-[100px] rounded-md border border-border bg-background pl-6 pr-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              placeholder="Aggiungi"
+              className="h-7 w-[90px] rounded-md border border-border bg-background pl-6 pr-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "");
                 setRevenueValue(v);
               }}
               onBlur={async () => {
-                const parsed = revenueValue ? parseInt(revenueValue, 10) : null;
-                if (parsed === currentRevenue) return;
+                const parsed = revenueValue ? parseInt(revenueValue, 10) : 0;
+                if (!parsed) return;
+                const newTotal = (currentRevenue ?? 0) + parsed;
                 const supabase = createClient();
                 const { error } = await supabase
                   .from("clients")
-                  .update({ revenue: parsed })
+                  .update({ revenue: newTotal })
                   .eq("id", clientId);
                 if (error) {
                   toast.error("Errore salvataggio compenso");
                   return;
                 }
+                setRevenueValue("");
+                onRevenueChange?.(newTotal);
                 setRevenueSaved(true);
                 if (savedTimer.current) clearTimeout(savedTimer.current);
                 savedTimer.current = setTimeout(() => setRevenueSaved(false), 2000);
@@ -313,6 +311,9 @@ export function SalesPipelineSelect({
           {revenueSaved && (
             <Check className="h-3.5 w-3.5 text-green-500" />
           )}
+          <span className="whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
+            Totale: €{currentRevenue ?? 0}
+          </span>
         </div>
       )}
 

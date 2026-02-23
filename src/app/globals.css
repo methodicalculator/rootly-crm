@@ -166,6 +166,9 @@
   border-radius: 6px;
   padding: 4px 8px;
 }
+.rbc-day-slot .rbc-event {
+  overflow: visible;
+}
 .rbc-event.rbc-selected {
   background-color: color-mix(in srgb, var(--primary) 85%, black);
 }

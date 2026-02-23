@@ -223,6 +223,7 @@ export default function ClientsPage() {
                         currentStage={client.sales_stage ?? "new"}
                         currentRevenue={client.revenue}
                         onStageChange={(stage) => handleStageChange(client.id, stage)}
+                        onRevenueChange={(rev) => setClients((prev) => prev.map((c) => c.id === client.id ? { ...c, revenue: rev } : c))}
                         organizationId={client.organization_id!}
                         clientName={`${client.nome} ${client.cognome}`}
                       />
