@@ -196,20 +196,22 @@ export function SalesPipelineSelect({
   }
 
   function handleSingolaSedutaConfirm() {
-    const importo = singolaSedutaImporto ? parseInt(singolaSedutaImporto, 10) : null;
+    const importo = singolaSedutaImporto ? parseInt(singolaSedutaImporto, 10) : 0;
+    const cumulativeRevenue = (currentRevenue ?? 0) + importo;
     setShowSingolaSedutaDialog(false);
     updateStage("appointment_completed", undefined, undefined, {
-      revenue: importo,
+      revenue: cumulativeRevenue,
       sessions_count: 1,
     });
   }
 
   function handleConvertedConfirm() {
-    const importo = convertedImporto ? parseInt(convertedImporto, 10) : null;
+    const importo = convertedImporto ? parseInt(convertedImporto, 10) : 0;
     const sessions = convertedSessions ? parseInt(convertedSessions, 10) : null;
+    const cumulativeRevenue = (currentRevenue ?? 0) + importo;
     setShowConvertedDialog(false);
     updateStage("converted", undefined, undefined, {
-      revenue: importo,
+      revenue: cumulativeRevenue,
       sessions_count: sessions,
     });
   }
@@ -329,9 +331,14 @@ export function SalesPipelineSelect({
             <DialogTitle>Singola Seduta</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {(currentRevenue ?? 0) > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Incasso attuale: <span className="font-semibold text-foreground">€ {currentRevenue}</span>
+              </p>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium">
-                Importo seduta
+                Importo da aggiungere
               </label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -370,9 +377,14 @@ export function SalesPipelineSelect({
             <DialogTitle>Percorso Acquistato</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {(currentRevenue ?? 0) > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Incasso attuale: <span className="font-semibold text-foreground">€ {currentRevenue}</span>
+              </p>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium">
-                Importo percorso
+                Importo da aggiungere
               </label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">

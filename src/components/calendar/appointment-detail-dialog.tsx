@@ -16,6 +16,7 @@ interface AppointmentDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   appointment: AppointmentWithClient | null;
+  onComplete?: (appointment: AppointmentWithClient) => void;
   onCancel?: (appointment: AppointmentWithClient) => void;
 }
 
@@ -23,6 +24,7 @@ export function AppointmentDetailDialog({
   open,
   onOpenChange,
   appointment,
+  onComplete,
   onCancel,
 }: AppointmentDetailDialogProps) {
   if (!appointment) return null;
@@ -93,17 +95,32 @@ export function AppointmentDetailDialog({
             </div>
           )}
 
-          {onCancel && (
-            <Button
-              variant="destructive"
-              className="w-full mt-2"
-              onClick={() => {
-                onOpenChange(false);
-                onCancel(appointment);
-              }}
-            >
-              Cancella Appuntamento
-            </Button>
+          {(onComplete || onCancel) && (
+            <div className="flex flex-col gap-2 mt-2">
+              {onComplete && (
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onComplete(appointment);
+                  }}
+                >
+                  Seduta Completata
+                </Button>
+              )}
+              {onCancel && (
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onCancel(appointment);
+                  }}
+                >
+                  Cancella Appuntamento
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </DialogContent>

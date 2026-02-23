@@ -91,6 +91,18 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
 
   function handleCalendarSelect(range: DateRange | undefined) {
     if (!range?.from) return;
+
+    // Same day clicked twice: select that single day
+    if (
+      !range.to &&
+      tempRange?.from &&
+      startOfDay(range.from).getTime() === startOfDay(tempRange.from).getTime()
+    ) {
+      onChange({ from: startOfDay(range.from), to: endOfDay(range.from) });
+      setOpen(false);
+      return;
+    }
+
     setTempRange(range);
     if (range.from && range.to) {
       onChange({ from: range.from, to: range.to });

@@ -332,7 +332,7 @@ export default function CampaignsPage() {
 
                     {/* ── Aggregate KPIs (last 30 days) ──── */}
                     {hasMetrics ? (
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <MetricBox
                           label="Lead"
                           value={fmtNum(leadCount)}
@@ -356,10 +356,6 @@ export default function CampaignsPage() {
                               ? `${agg.avgCtr.toFixed(2)}%`
                               : "—"
                           }
-                        />
-                        <MetricBox
-                          label="Impressions"
-                          value={fmtNum(agg.totalImpressions)}
                         />
                       </div>
                     ) : (

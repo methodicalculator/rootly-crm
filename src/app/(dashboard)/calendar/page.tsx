@@ -10,6 +10,7 @@ import { getAppointmentsWithClients } from "@/lib/supabase/queries";
 import { CalendarToolbar } from "@/components/calendar/calendar-toolbar";
 import { AppointmentDetailDialog } from "@/components/calendar/appointment-detail-dialog";
 import { CancelAppointmentDialog } from "@/components/calendar/cancel-appointment-dialog";
+import { CompletedSessionDialog } from "@/components/calendar/completed-session-dialog";
 import type { AppointmentWithClient } from "@/types";
 
 const locales = { it };
@@ -41,6 +42,8 @@ export default function CalendarPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [cancelFlowOpen, setCancelFlowOpen] = useState(false);
   const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentWithClient | null>(null);
+  const [completedFlowOpen, setCompletedFlowOpen] = useState(false);
+  const [completingAppointment, setCompletingAppointment] = useState<AppointmentWithClient | null>(null);
   const calendarWrapperRef = useRef<HTMLDivElement>(null);
 
   // Mobile detection — default to day view on small screens
@@ -115,6 +118,22 @@ export default function CalendarPage() {
     setCancelFlowOpen(true);
   }
 
+  function handleCompleteAppointment(appointment: AppointmentWithClient) {
+    setCompletingAppointment(appointment);
+    setCompletedFlowOpen(true);
+  }
+
+  function handleCompletedSessionDone() {
+    if (completingAppointment) {
+      setAppointments((prev) =>
+        prev.filter((a) => a.id !== completingAppointment.id)
+      );
+    }
+    setCompletedFlowOpen(false);
+    setCompletingAppointment(null);
+    fetchAppointments(false);
+  }
+
   function handleCancelComplete() {
     // Optimistically remove the cancelled event from local state
     if (cancellingAppointment) {
@@ -185,12 +204,18 @@ export default function CalendarPage() {
                     </span>
                   );
                 }
+                const notes = event.resource.notes;
                 return (
                   <div className="leading-tight">
                     <div className="font-bold text-[0.8125rem]">{event.title}</div>
                     <div className="text-[0.8125rem] opacity-90">
                       {format(event.start, "HH:mm")} – {format(event.end, "HH:mm")}
                     </div>
+                    {notes && (
+                      <div className="text-[0.6875rem] opacity-75 truncate mt-0.5">
+                        Note: {notes}
+                      </div>
+                    )}
                   </div>
                 );
               },
@@ -238,7 +263,15 @@ export default function CalendarPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         appointment={selectedAppointment}
+        onComplete={handleCompleteAppointment}
         onCancel={handleCancelAppointment}
+      />
+
+      <CompletedSessionDialog
+        open={completedFlowOpen}
+        onOpenChange={setCompletedFlowOpen}
+        appointment={completingAppointment}
+        onComplete={handleCompletedSessionDone}
       />
 
       <CancelAppointmentDialog
