@@ -90,9 +90,18 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   }
 
   function handleCalendarSelect(range: DateRange | undefined) {
-    if (!range?.from) return;
+    // Clicking the already-selected "from" day deselects in react-day-picker
+    // (fires onSelect with undefined). Treat this as single-day confirmation.
+    if (!range?.from) {
+      if (tempRange?.from) {
+        onChange({ from: startOfDay(tempRange.from), to: endOfDay(tempRange.from) });
+        setOpen(false);
+        setTempRange(undefined);
+      }
+      return;
+    }
 
-    // Same day clicked twice: select that single day
+    // Same day clicked twice (alternative path: library re-fires from without to)
     if (
       !range.to &&
       tempRange?.from &&
@@ -100,6 +109,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
     ) {
       onChange({ from: startOfDay(range.from), to: endOfDay(range.from) });
       setOpen(false);
+      setTempRange(undefined);
       return;
     }
 
