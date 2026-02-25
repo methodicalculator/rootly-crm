@@ -471,16 +471,6 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 border-t border-border pt-3">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => openActionModal(lead)}
-                    >
-                      Aggiorna Stato
-                    </Button>
-                  </div>
                 </div>
               ))}
             </div>

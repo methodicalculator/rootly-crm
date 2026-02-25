@@ -73,7 +73,7 @@ const MONTH_NAMES_FULL = [
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { effectiveOrgId, isAdmin, loading: orgLoading } = useOrganization();
+  const { effectiveOrgId, isAdmin, role, loading: orgLoading } = useOrganization();
 
   const viewOnly = searchParams.get("viewOnly") === "true";
   const viewOrgId = searchParams.get("orgId");
@@ -676,7 +676,7 @@ function DashboardContent() {
                         </div>
                       </div>
                     </div>
-                    {!isViewMode && (
+                    {!isViewMode && role === 'owner' && (
                       <div className="mt-3 border-t border-border pt-3">
                         <Button
                           size="sm"
