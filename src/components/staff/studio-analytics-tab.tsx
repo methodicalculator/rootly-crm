@@ -140,46 +140,27 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
     ];
   }, [filteredClients]);
 
-  // === Trend Lead (30-day intervals from contract start) ===
+  // === Trend Lead (daily within selected date range) ===
   const trendData = useMemo(() => {
-    const now = new Date();
-    const start = contractStartDate ? new Date(contractStartDate) : null;
-    if (!start) return [];
+    const countsByDate = new Map<string, number>();
+    for (const c of filteredClients) {
+      const key = toRomeDateStr(c.created_at);
+      countsByDate.set(key, (countsByDate.get(key) ?? 0) + 1);
+    }
 
-    const startMs = start.getTime();
-    const MS_30_DAYS = 30 * 24 * 60 * 60 * 1000;
-
-    const intervals: { from: Date; to: Date; label: string; count: number }[] = [];
-    let periodStart = startMs;
-    let idx = 0;
-    while (periodStart < now.getTime()) {
-      const periodEnd = Math.min(periodStart + MS_30_DAYS, now.getTime());
-      const fromDate = new Date(periodStart);
-      const toDate = new Date(periodEnd);
-      const fromLabel = `${fromDate.getDate()}/${fromDate.getMonth() + 1}`;
-      const toLabel = `${toDate.getDate()}/${toDate.getMonth() + 1}`;
-      intervals.push({
-        from: fromDate,
-        to: toDate,
-        label: `Giorni ${idx * 30 + 1}-${(idx + 1) * 30} (${fromLabel}–${toLabel})`,
-        count: 0,
+    const entries: { giorno: string; lead: number }[] = [];
+    const cur = startOfDay(dateRange.from);
+    const end = startOfDay(dateRange.to);
+    while (cur <= end) {
+      const key = toRomeDateStr(cur);
+      entries.push({
+        giorno: cur.toLocaleDateString("it-IT", { day: "2-digit", month: "short" }),
+        lead: countsByDate.get(key) ?? 0,
       });
-      periodStart += MS_30_DAYS;
-      idx++;
+      cur.setDate(cur.getDate() + 1);
     }
-
-    for (const c of clients) {
-      const createdMs = new Date(c.created_at).getTime();
-      for (const interval of intervals) {
-        if (createdMs >= interval.from.getTime() && createdMs < interval.to.getTime()) {
-          interval.count++;
-          break;
-        }
-      }
-    }
-
-    return intervals.map((i) => ({ mese: i.label, lead: i.count }));
-  }, [clients, contractStartDate]);
+    return entries;
+  }, [filteredClients, dateRange]);
 
   // === Revenue data ===
   const revenueData = useMemo(() => {
@@ -406,9 +387,7 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
           <CardHeader>
             <CardTitle className="text-base font-semibold text-foreground">Trend Lead</CardTitle>
             <p className="text-sm text-muted-foreground">
-              {contractStartDate
-                ? `Periodi di 30 giorni dal ${new Date(contractStartDate).toLocaleDateString("it-IT")}`
-                : "Nessuna data di inizio contratto"}
+              Andamento lead nel periodo selezionato
             </p>
           </CardHeader>
           <CardContent>
@@ -417,9 +396,10 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
-                    dataKey="mese"
+                    dataKey="giorno"
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={{ stroke: "var(--border)" }}
+                    interval="preserveStartEnd"
                   />
                   <YAxis
                     tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
@@ -434,14 +414,18 @@ export function StudioAnalyticsTab({ organizationId }: { organizationId: string 
                       backgroundColor: "var(--card)",
                       color: "var(--foreground)",
                     }}
+                    formatter={(value) => [
+                      Number(value).toLocaleString("it-IT"),
+                      "Lead",
+                    ]}
                   />
                   <Line
                     type="monotone"
                     dataKey="lead"
-                    stroke="#F89627"
-                    strokeWidth={2}
-                    dot={{ fill: "#F89627", r: 4 }}
-                    activeDot={{ r: 6, fill: "#F89627" }}
+                    stroke="#10B981"
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={false}
                     name="Lead"
                   />
                 </LineChart>
