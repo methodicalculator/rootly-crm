@@ -33,7 +33,7 @@ interface OrgResult {
   error?: string;
 }
 
-export async function POST(req: NextRequest) {
+async function handleRequest(req: NextRequest) {
   const startTime = Date.now();
 
   // Auth: verify CRON_SECRET
@@ -227,4 +227,13 @@ export async function POST(req: NextRequest) {
     results,
     duration_ms: Date.now() - startTime,
   });
+}
+
+// Vercel cron invokes GET; also support POST for manual calls
+export async function GET(req: NextRequest) {
+  return handleRequest(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleRequest(req);
 }
