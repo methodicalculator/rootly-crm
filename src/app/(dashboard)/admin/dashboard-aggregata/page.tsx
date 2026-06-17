@@ -15,7 +15,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 import { CLIENT_STAGES, LEAD_STAGES } from "@/lib/constants/stages";
-import { startOfMonthRomeISO } from "@/lib/date-utils";
+import { startOfMonthRomeISO, toRomeDateStr } from "@/lib/date-utils";
 import { toast } from "sonner";
 import type { Organization, OrganizationType } from "@/types";
 
@@ -71,7 +71,9 @@ export default function AdminDashboardPage() {
     const supabase = createClient();
     const now = new Date();
 
+    const romeToday = toRomeDateStr(now);
     const startOfMonth = startOfMonthRomeISO(now);
+    const monthStartDate = romeToday.slice(0, 8) + "01"; // "YYYY-MM-01"
 
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
@@ -148,11 +150,13 @@ export default function AdminDashboardPage() {
         let orgSpend = 0;
 
         if (campaignIds.length > 0) {
+          // Use plain YYYY-MM-DD for date column (ISO timestamps cause off-by-one)
           const { data: metricsData } = await supabase
             .from("campaign_metrics")
             .select("spend")
             .in("campaign_id", campaignIds)
-            .gte("date", startOfMonth);
+            .gte("date", monthStartDate)
+            .lte("date", romeToday);
 
           for (const m of metricsData ?? []) {
             orgSpend += Number(m.spend) || 0;

@@ -218,6 +218,10 @@ function DashboardContent() {
       setIncassatoMonth(totalIncassato);
 
       // --- Spesa Mese: sum spend from campaign_metrics ---
+      // Use plain YYYY-MM-DD strings for date column comparisons
+      // (startOfMonthRomeISO returns an ISO timestamp that Postgres casts
+      //  to the previous day due to UTC offset, causing off-by-one)
+      const monthStartDate = romeToday.slice(0, 8) + "01"; // "YYYY-MM-01"
       const campaignIds = (orgCampaignsRes.data ?? []).map(
         (c: { id: string }) => c.id
       );
@@ -227,7 +231,8 @@ function DashboardContent() {
           .from("campaign_metrics")
           .select("spend")
           .in("campaign_id", campaignIds)
-          .gte("date", startOfMonth);
+          .gte("date", monthStartDate)
+          .lte("date", romeToday);
 
         for (const m of metricsData ?? []) {
           totalSpend += Number(m.spend) || 0;

@@ -156,11 +156,14 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       );
       let totalSpend = 0;
       if (campaignIds.length > 0) {
+        // Use plain YYYY-MM-DD for date column (ISO timestamps cause off-by-one)
+        const monthStartDate = romeToday.slice(0, 8) + "01";
         const { data: metricsData } = await supabase
           .from("campaign_metrics")
           .select("spend")
           .in("campaign_id", campaignIds)
-          .gte("date", startOfMonth);
+          .gte("date", monthStartDate)
+          .lte("date", romeToday);
 
         for (const m of metricsData ?? []) {
           totalSpend += Number(m.spend) || 0;
