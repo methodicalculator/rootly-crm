@@ -20,7 +20,7 @@ import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants";
 
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { toRomeDateStr } from "@/lib/date-utils";
-import { subDays, startOfDay, endOfDay } from "date-fns";
+import { subDays, startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
 import type { Campaign, CampaignMetrics, Client } from "@/types";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -68,6 +68,7 @@ export default function CampaignsPage() {
     Map<string, AggregateMetrics>
   >(new Map());
   const [loading, setLoading] = useState(true);
+  const [isFetchingMeta, setIsFetchingMeta] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortCol, setSortCol] = useState<SortColumn>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -110,7 +111,37 @@ export default function CampaignsPage() {
       .lte("date", toRomeDateStr(dateRange.to))
       .order("date", { ascending: false });
 
-    const allMetrics = (metricsData ?? []) as CampaignMetrics[];
+    let allMetrics = (metricsData ?? []) as CampaignMetrics[];
+
+    // Backfill missing dates from Meta
+    const knownDates = [...new Set(allMetrics.map(m => m.date))];
+    const allDatesInRange = eachDayOfInterval({ start: dateRange.from, end: dateRange.to })
+      .map(d => toRomeDateStr(d));
+    const missingDates = allDatesInRange.filter(d => !knownDates.includes(d));
+
+    if (missingDates.length > 0 && effectiveOrgId) {
+      setIsFetchingMeta(true);
+      try {
+        const res = await fetch("/api/campaigns/backfill-metrics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organization_id: effectiveOrgId,
+            date_from: toRomeDateStr(dateRange.from),
+            date_to: toRomeDateStr(dateRange.to),
+            known_dates: knownDates,
+          }),
+        });
+        const result = await res.json();
+        if (result.fetched && result.new_metrics?.length > 0) {
+          allMetrics = [...allMetrics, ...result.new_metrics];
+        }
+      } catch (e) {
+        console.error("Backfill failed:", e);
+      } finally {
+        setIsFetchingMeta(false);
+      }
+    }
 
     // Group by campaign_id
     const grouped = new Map<string, CampaignMetrics[]>();
@@ -245,6 +276,14 @@ export default function CampaignsPage() {
           Monitora e gestisci le campagne Meta Ads dei tuoi clienti.
         </p>
       </div>
+
+      {/* Meta backfill indicator */}
+      {isFetchingMeta && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Recupero dati da Meta...
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
