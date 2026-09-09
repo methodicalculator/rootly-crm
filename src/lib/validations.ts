@@ -37,6 +37,7 @@ export const organizationFormSchema = z.object({
     .string()
     .optional()
     .refine((v) => !v || /^\d+$/.test(v), "Solo numeri"),
+  meta_page_access_token: z.string().optional(),
   monthly_budget: z.string().optional(),
   contract_start_date: z.string().optional(),
   contract_end_date: z.string().optional(),

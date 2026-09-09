@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import {
   organizationFormSchema,
   type OrganizationFormValues,
@@ -51,6 +51,7 @@ const EMPTY_FORM: OrganizationFormValues = {
   type: "fisioterapia",
   meta_page_id: "",
   meta_ad_account_id: "",
+  meta_page_access_token: "",
   monthly_budget: "",
   contract_start_date: "",
   contract_end_date: "",
@@ -65,6 +66,7 @@ export function OrganizationFormDialog({
   prefillData,
 }: OrganizationFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [showToken, setShowToken] = useState(false);
   const isEditing = !!editingOrg;
 
   const form = useForm<OrganizationFormValues>({
@@ -84,6 +86,7 @@ export function OrganizationFormDialog({
         type: (editingOrg.type === "agency" ? "altro" : editingOrg.type) as OrganizationFormValues["type"],
         meta_page_id: editingOrg.meta_page_id ?? "",
         meta_ad_account_id: editingOrg.meta_ad_account_id ?? "",
+        meta_page_access_token: editingOrg.meta_page_access_token ?? "",
         monthly_budget: editingOrg.monthly_budget
           ? String(editingOrg.monthly_budget)
           : "",
@@ -121,6 +124,7 @@ export function OrganizationFormDialog({
         type: values.type,
         meta_page_id: values.meta_page_id || null,
         meta_ad_account_id: values.meta_ad_account_id || null,
+        meta_page_access_token: values.meta_page_access_token || null,
         monthly_budget: values.monthly_budget
           ? parseFloat(values.monthly_budget)
           : null,
@@ -271,6 +275,34 @@ export function OrganizationFormDialog({
             />
             <p className="text-xs text-muted-foreground">
               Necessario per il routing automatico con Zapier e Make
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="meta_page_access_token">Page Access Token</Label>
+            <div className="relative">
+              <Input
+                id="meta_page_access_token"
+                type={showToken ? "text" : "password"}
+                placeholder="Token di accesso della pagina"
+                {...form.register("meta_page_access_token")}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                onClick={() => setShowToken(!showToken)}
+              >
+                {showToken ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Token di lunga durata per la pagina Facebook
             </p>
           </div>
 

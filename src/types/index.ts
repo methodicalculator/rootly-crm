@@ -32,6 +32,7 @@ export interface Organization {
   meta_business_id: string | null;
   meta_page_id: string | null;
   meta_ad_account_id: string | null;
+  meta_page_access_token: string | null;
   created_at: string;
   updated_at: string;
 }
