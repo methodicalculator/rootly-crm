@@ -144,16 +144,12 @@ export default function GestioneStudiPage() {
           (r: { user_id: string }) => r.user_id
         );
 
-        console.log("[STUDI] staff_organizations for org", org.id, "→", staffUserIds, staffOrgRes.error);
-
         let assignedStaff: StaffMember[] = [];
         if (staffUserIds.length > 0) {
           const { data: profilesData, error: profilesError } = await supabase
             .from("user_profiles")
             .select("id, full_name, email")
             .in("id", staffUserIds);
-
-          console.log("[STUDI] user_profiles for staff:", profilesData, profilesError);
 
           const profileMap = new Map(
             (profilesData ?? []).map((p: { id: string; full_name: string | null; email: string | null }) => [p.id, p])

@@ -97,18 +97,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           .eq("id", user.id)
           .single();
 
-        // DEBUG — remove after fixing
-        console.log("[ORG CONTEXT DEBUG]", {
-          userId: user.id,
-          userEmail: user.email,
-          profile: profile ? {
-            organization_id: profile.organization_id,
-            role: profile.role,
-            access_level: profile.access_level,
-          } : null,
-          profileError: profileError?.message ?? null,
-        });
-
         if (profile) {
           setOrganizationId(profile.organization_id);
           const userRole = (profile.role as string) ?? "owner";
