@@ -1,4 +1,4 @@
--- CRM Connector - Multi-Tenant Database Schema
+-- Rootly CRM - Multi-Tenant Database Schema
 -- Run this in the Supabase SQL Editor
 -- This replaces the previous single-tenant schema
 
@@ -65,7 +65,7 @@ INSERT INTO organizations (
   id, name, type, owner_name, email, status, approved_at
 ) VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'CRM Connector',
+  'Rootly CRM',
   'agency',
   'Jacopo Massaretti',
   'jacopo.massaretti@gmail.com',

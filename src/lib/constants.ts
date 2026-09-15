@@ -2,7 +2,7 @@
 // App branding
 // ============================================
 
-export const APP_NAME = "CRM Connector";
+export const APP_NAME = "Rootly CRM";
 
 import type {
   ClientStatus,

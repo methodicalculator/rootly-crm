@@ -1,4 +1,5 @@
 import type { Organization } from "@/types";
+import { APP_NAME } from "@/lib/constants";
 
 export const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 export const FISIOVITA_ORG_ID = "10000000-0000-0000-0000-000000000002";
@@ -8,7 +9,7 @@ export const PELLE_PERFETTA_ORG_ID = "10000000-0000-0000-0000-000000000004";
 export const mockOrganizations: Organization[] = [
   {
     id: DEFAULT_ORG_ID,
-    name: "CRM Connector",
+    name: APP_NAME,
     type: "agency",
     owner_name: "Jacopo Massaretti",
     email: "jacopo.massaretti@gmail.com",
