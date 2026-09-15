@@ -1,3 +1,9 @@
+// ============================================
+// App branding
+// ============================================
+
+export const APP_NAME = "CRM Connector";
+
 import type {
   ClientStatus,
   ClientSource,

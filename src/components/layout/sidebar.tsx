@@ -17,7 +17,7 @@ import {
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, ADMIN_NAV_ITEMS, STAFF_NAV_ITEMS } from "@/lib/constants";
+import { NAV_ITEMS, ADMIN_NAV_ITEMS, STAFF_NAV_ITEMS, APP_NAME } from "@/lib/constants";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -60,8 +60,8 @@ export function Sidebar() {
       <div className="flex items-center justify-center border-b border-border py-2 px-4">
         <Link href={logoHref}>
           <img
-            src="/logo_horizon.png"
-            alt="Horizon One"
+            src="/logo_crm.png"
+            alt={APP_NAME}
             className="h-20 w-auto object-contain"
           />
         </Link>

@@ -1,14 +1,14 @@
 import type { Organization } from "@/types";
 
-export const HORIZON_ONE_ORG_ID = "00000000-0000-0000-0000-000000000001";
+export const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 export const FISIOVITA_ORG_ID = "10000000-0000-0000-0000-000000000002";
 export const ARMONIA_ORG_ID = "10000000-0000-0000-0000-000000000003";
 export const PELLE_PERFETTA_ORG_ID = "10000000-0000-0000-0000-000000000004";
 
 export const mockOrganizations: Organization[] = [
   {
-    id: HORIZON_ONE_ORG_ID,
-    name: "Horizon One",
+    id: DEFAULT_ORG_ID,
+    name: "CRM Connector",
     type: "agency",
     owner_name: "Jacopo Massaretti",
     email: "jacopo.massaretti@gmail.com",

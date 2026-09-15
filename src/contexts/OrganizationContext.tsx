@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { AccessLevel, Organization, UserRole } from "@/types";
 
-const LS_KEY = "horizon_impersonating_org_id";
+const LS_KEY = "crm_impersonating_org_id";
 
 type OrganizationSummary = Pick<Organization, "id" | "name" | "type" | "status">;
 

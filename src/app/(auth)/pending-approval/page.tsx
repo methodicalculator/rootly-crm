@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { APP_NAME } from "@/lib/constants";
 
 export default function PendingApprovalPage() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function PendingApprovalPage() {
             Prossimi Passi:
           </p>
           <ol className="list-inside list-decimal space-y-2 text-sm text-blue-800 dark:text-blue-300">
-            <li>Un amministratore di Horizon One verificherà il tuo account</li>
+            <li>Un amministratore verificherà il tuo account</li>
             <li>Ti assegnerà al tuo studio/organizzazione</li>
             <li>Riceverai un&apos;email quando il tuo account sarà attivo</li>
           </ol>
@@ -84,21 +85,6 @@ export default function PendingApprovalPage() {
         <p className="text-center text-xs text-muted-foreground">
           Questo processo richiede normalmente meno di 24 ore.
         </p>
-
-        <div className="border-t pt-4">
-          <p className="mb-2 text-center text-xs text-muted-foreground">
-            Hai bisogno di aiuto?
-          </p>
-          <p className="text-center text-sm">
-            Contatta{" "}
-            <a
-              href="mailto:support@horizonone.it"
-              className="text-primary hover:underline"
-            >
-              support@horizonone.it
-            </a>
-          </p>
-        </div>
 
         <Button variant="outline" className="w-full" onClick={handleLogout}>
           Logout

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
 const inter = Inter({
@@ -11,14 +12,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Horizon One CRM",
+  title: APP_NAME,
   description: "CRM per agenzie marketing specializzate in terapie manuali",
   icons: {
-    icon: "/logo_horizon.png",
-    apple: "/logo_horizon.png",
+    icon: "/logo_crm.png",
+    apple: "/logo_crm.png",
   },
   openGraph: {
-    title: "Horizon One CRM",
+    title: APP_NAME,
     description: "CRM per agenzie marketing specializzate in terapie manuali",
     images: [
       {

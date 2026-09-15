@@ -1,4 +1,4 @@
--- CRM Horizon One - Multi-Tenant Database Schema
+-- CRM Connector - Multi-Tenant Database Schema
 -- Run this in the Supabase SQL Editor
 -- This replaces the previous single-tenant schema
 
@@ -41,7 +41,7 @@ CREATE TABLE organizations (
   approved_at TIMESTAMPTZ,
   approved_by UUID, -- user_id admin che ha approvato
 
-  -- Contratto Horizon One
+  -- Contratto CRM
   monthly_budget DECIMAL(10,2),
   contract_start_date DATE,
   contract_end_date DATE,
@@ -60,12 +60,12 @@ CREATE TRIGGER organizations_updated_at
   BEFORE UPDATE ON organizations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Horizon One come organizzazione admin
+-- Organizzazione admin di default
 INSERT INTO organizations (
   id, name, type, owner_name, email, status, approved_at
 ) VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'Horizon One',
+  'CRM Connector',
   'agency',
   'Jacopo Massaretti',
   'jacopo.massaretti@gmail.com',
@@ -326,7 +326,7 @@ CREATE TRIGGER appointments_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================
--- INVOICES (fatture Horizon One ai clienti)
+-- INVOICES (fatture ai clienti)
 -- ============================================
 
 CREATE TABLE invoices (

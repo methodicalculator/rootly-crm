@@ -1,3 +1,5 @@
+import { APP_NAME } from "@/lib/constants";
+
 export default function AuthLayout({
   children,
 }: {
@@ -8,8 +10,8 @@ export default function AuthLayout({
       <div className="w-full max-w-md space-y-6">
         <div className="flex flex-col items-center">
           <img
-            src="/logo_horizon.png"
-            alt="Horizon One"
+            src="/logo_crm.png"
+            alt={APP_NAME}
             className="h-20 w-auto object-contain"
           />
           <p className="mt-1 text-sm text-muted-foreground">

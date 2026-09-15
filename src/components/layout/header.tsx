@@ -17,6 +17,7 @@ import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { APP_NAME } from "@/lib/constants";
 import type { UserProfile } from "@/types";
 
 function getInitials(name: string): string {
@@ -57,7 +58,7 @@ export function Header({ profile }: { profile: UserProfile | null }) {
       <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 shadow-sm lg:px-6">
         <div className="flex items-center gap-4">
           <MobileNav />
-          <h2 className="hidden">Horizon One</h2>
+          <h2 className="hidden">{APP_NAME}</h2>
         </div>
 
         <div className="flex items-center gap-2">
