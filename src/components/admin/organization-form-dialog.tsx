@@ -218,6 +218,11 @@ export function OrganizationFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {form.formState.errors.type && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.type.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -239,6 +244,11 @@ export function OrganizationFormDialog({
             <div className="space-y-1.5">
               <Label htmlFor="phone">Telefono</Label>
               <Input id="phone" {...form.register("phone")} />
+              {form.formState.errors.phone && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.phone.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -246,6 +256,11 @@ export function OrganizationFormDialog({
           <div className="space-y-1.5">
             <Label htmlFor="address">Indirizzo</Label>
             <Input id="address" {...form.register("address")} />
+            {form.formState.errors.address && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.address.message}
+              </p>
+            )}
           </div>
 
           {/* Città + Provincia */}
@@ -253,6 +268,11 @@ export function OrganizationFormDialog({
             <div className="space-y-1.5">
               <Label htmlFor="city">Città</Label>
               <Input id="city" {...form.register("city")} />
+              {form.formState.errors.city && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.city.message}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="province">Provincia</Label>
@@ -262,6 +282,11 @@ export function OrganizationFormDialog({
                 className="uppercase"
                 {...form.register("province")}
               />
+              {form.formState.errors.province && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.province.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -273,9 +298,33 @@ export function OrganizationFormDialog({
               placeholder="es: 123456789012345"
               {...form.register("meta_page_id")}
             />
-            <p className="text-xs text-muted-foreground">
-              Necessario per il routing automatico con Zapier e Make
-            </p>
+            {form.formState.errors.meta_page_id ? (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.meta_page_id.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Necessario per il routing automatico con Zapier e Make
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="meta_ad_account_id">Ad Account ID</Label>
+            <Input
+              id="meta_ad_account_id"
+              placeholder="es: 123456789012345"
+              {...form.register("meta_ad_account_id")}
+            />
+            {form.formState.errors.meta_ad_account_id ? (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.meta_ad_account_id.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                ID numerico dell&apos;account pubblicitario Meta
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -301,9 +350,15 @@ export function OrganizationFormDialog({
                 )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Token di lunga durata per la pagina Facebook
-            </p>
+            {form.formState.errors.meta_page_access_token ? (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.meta_page_access_token.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Token di lunga durata per la pagina Facebook
+              </p>
+            )}
           </div>
 
           {/* Budget + Status */}
@@ -317,6 +372,11 @@ export function OrganizationFormDialog({
                 min="0"
                 {...form.register("monthly_budget")}
               />
+              {form.formState.errors.monthly_budget && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.monthly_budget.message}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Status</Label>
@@ -339,6 +399,11 @@ export function OrganizationFormDialog({
                   <SelectItem value="suspended">Sospeso</SelectItem>
                 </SelectContent>
               </Select>
+              {form.formState.errors.status && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.status.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -351,6 +416,11 @@ export function OrganizationFormDialog({
                 type="date"
                 {...form.register("contract_start_date")}
               />
+              {form.formState.errors.contract_start_date && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.contract_start_date.message}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="contract_end_date">Fine Contratto</Label>
@@ -359,6 +429,11 @@ export function OrganizationFormDialog({
                 type="date"
                 {...form.register("contract_end_date")}
               />
+              {form.formState.errors.contract_end_date && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.contract_end_date.message}
+                </p>
+              )}
             </div>
           </div>
 
