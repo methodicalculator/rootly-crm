@@ -40,7 +40,6 @@ export async function PUT(request: NextRequest) {
   let body: {
     meta_page_id?: string;
     meta_ad_account_id?: string;
-    meta_page_access_token?: string;
   };
 
   try {
@@ -59,7 +58,6 @@ export async function PUT(request: NextRequest) {
     .update({
       meta_page_id: body.meta_page_id || null,
       meta_ad_account_id: body.meta_ad_account_id || null,
-      meta_page_access_token: body.meta_page_access_token || null,
     })
     .eq("id", profile.organization_id);
 
