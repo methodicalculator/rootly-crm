@@ -7,6 +7,7 @@ interface InsertLeadParams {
   email?: string | null;
   phone?: string | null;
   note?: string | null;
+  serviceInterest?: string | null;
 }
 
 export async function insertLead(
@@ -27,6 +28,7 @@ export async function insertLead(
       email: params.email || null,
       telefono: params.phone || null,
       note: params.note || null,
+      service_interest: params.serviceInterest || null,
       source: "meta_ads",
       status: "attivo",
       first_contact_date: toRomeDateStr(new Date()),

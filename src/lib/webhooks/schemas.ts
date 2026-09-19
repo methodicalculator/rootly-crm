@@ -37,6 +37,7 @@ export const metaLeadSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
   notes: z.string().optional(),
+  service_interest: z.string().optional(),
 });
 
 export type MetaLeadPayload = z.infer<typeof metaLeadSchema>;

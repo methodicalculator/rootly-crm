@@ -234,6 +234,7 @@ export async function POST(request: NextRequest) {
     email: data.email,
     phone: data.phone,
     note: data.notes,
+    serviceInterest: data.service_interest,
   });
 
   if ("error" in result) {
