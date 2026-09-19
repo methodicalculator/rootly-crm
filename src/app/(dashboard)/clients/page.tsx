@@ -3,24 +3,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Users, Plus, Loader2, Mail, Phone, StickyNote, MoreHorizontal, Trash2 } from "lucide-react";
+import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
 import { ClientDetailSheet } from "@/components/clients/client-detail-sheet";
@@ -52,8 +39,6 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const highlightRef = useRef<HTMLTableRowElement>(null);
   const hasScrolled = useRef(false);
 
@@ -133,30 +118,6 @@ export default function ClientsPage() {
     setSelectedClient(null);
   }
 
-  async function handleDeleteConfirm() {
-    if (!clientToDelete) return;
-    setDeleting(true);
-
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("clients")
-      .delete()
-      .eq("id", clientToDelete.id);
-
-    setDeleting(false);
-    setClientToDelete(null);
-
-    if (error) {
-      const { toast } = await import("sonner");
-      toast.error("Errore nell'eliminazione", { description: error.message });
-      return;
-    }
-
-    const { toast } = await import("sonner");
-    toast.success("Lead eliminato");
-    setClients((prev) => prev.filter((c) => c.id !== clientToDelete.id));
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -228,7 +189,6 @@ export default function ClientsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Nome</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">Contatto</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Stato Cliente</th>
-                <th className="w-10 px-2 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -306,27 +266,6 @@ export default function ClientsPage() {
                         clientPhone={client.telefono}
                       />
                     </td>
-                    <td className="px-2 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
-                            onClick={() => setClientToDelete(client)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Elimina
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
                   </tr>
                 );
               })}
@@ -355,35 +294,6 @@ export default function ClientsPage() {
           />
         </>
       )}
-
-      {/* Conferma eliminazione dalla tabella */}
-      <Dialog open={!!clientToDelete} onOpenChange={(open) => { if (!open) setClientToDelete(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Eliminare questo lead?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Sei sicuro di voler eliminare <strong>{clientToDelete?.nome} {clientToDelete?.cognome}</strong>? L&apos;azione non è reversibile.
-          </p>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setClientToDelete(null)}
-              disabled={deleting}
-            >
-              Annulla
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Elimina Lead
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
