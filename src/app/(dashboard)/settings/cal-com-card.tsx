@@ -114,7 +114,7 @@ export function CalComCard({ organizationId }: CalComCardProps) {
             <Label htmlFor="cal_com_link">Link Cal.com</Label>
             <Input
               id="cal_com_link"
-              placeholder="es: serena-ottolini/prima-visita"
+              placeholder="es: nome-cognome/prima-visita"
               value={calComLink}
               onChange={(e) => setCalComLink(e.target.value)}
             />
