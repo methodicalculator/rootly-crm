@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { clientFormSchema, type ClientFormValues } from "@/lib/validations";
 import { createClientRecord } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
@@ -34,11 +33,10 @@ export function ClientFormDialog({
   onSuccess,
 }: ClientFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [tagInput, setTagInput] = useState("");
+  const [treatmentInput, setTreatmentInput] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
-  const tagInputRef = useRef<HTMLInputElement>(null);
+  const treatmentInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -48,79 +46,50 @@ export function ClientFormDialog({
       email: "",
       telefono: "",
       birth_date: "",
+      service_interest: "",
       note: "",
       status: "attivo",
-      tags: [],
     },
   });
 
-  const tags = form.watch("tags") ?? [];
-
-  // Fetch distinct tags used by this organization for autocomplete
+  // Fetch distinct service_interest values used by this organization
   useEffect(() => {
     if (!open) return;
     async function fetchSuggestions() {
       const supabase = createClient();
       const { data } = await supabase
         .from("clients")
-        .select("tags, service_interest")
-        .eq("organization_id", organizationId);
+        .select("service_interest")
+        .eq("organization_id", organizationId)
+        .not("service_interest", "is", null);
 
       if (!data) return;
 
-      const allTags = new Set<string>();
+      const unique = new Set<string>();
       for (const row of data) {
-        if (row.tags) {
-          for (const t of row.tags) allTags.add(t);
-        }
-        if (row.service_interest) {
-          allTags.add(row.service_interest);
-        }
+        if (row.service_interest) unique.add(row.service_interest);
       }
-      setSuggestions(Array.from(allTags).sort((a, b) => a.localeCompare(b)));
+      setSuggestions(Array.from(unique).sort((a, b) => a.localeCompare(b)));
     }
     fetchSuggestions();
   }, [open, organizationId]);
 
-  const filteredSuggestions = tagInput.trim()
-    ? suggestions.filter(
-        (s) =>
-          s.toLowerCase().includes(tagInput.trim().toLowerCase()) &&
-          !tags.includes(s)
+  const filteredSuggestions = treatmentInput.trim()
+    ? suggestions.filter((s) =>
+        s.toLowerCase().includes(treatmentInput.trim().toLowerCase())
       )
     : [];
 
-  function addTag(value: string) {
+  function selectTreatment(value: string) {
     const trimmed = value.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    form.setValue("tags", [...tags, trimmed]);
-    setTagInput("");
+    if (!trimmed) return;
+    form.setValue("service_interest", trimmed);
+    setTreatmentInput(trimmed);
     setShowSuggestions(false);
-  }
-
-  function removeTag(tag: string) {
-    form.setValue(
-      "tags",
-      tags.filter((t) => t !== tag)
-    );
-  }
-
-  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(tagInput);
-    }
-    if (e.key === "Backspace" && !tagInput && tags.length > 0) {
-      removeTag(tags[tags.length - 1]);
-    }
-    if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
   }
 
   async function onSubmit(values: ClientFormValues) {
     setSubmitting(true);
-    const tagsArray = values.tags && values.tags.length > 0 ? values.tags : null;
     const { error } = await createClientRecord(
       {
         nome: values.nome,
@@ -128,10 +97,9 @@ export function ClientFormDialog({
         email: values.email || null,
         telefono: values.telefono || null,
         birth_date: values.birth_date || null,
-        service_interest: tagsArray ? tagsArray[0] : null,
+        service_interest: values.service_interest || null,
         status: values.status,
         note: values.note || null,
-        tags: tagsArray,
       },
       organizationId
     );
@@ -146,7 +114,7 @@ export function ClientFormDialog({
 
     toast.success("Lead creato!");
     form.reset();
-    setTagInput("");
+    setTreatmentInput("");
     onOpenChange(false);
     onSuccess();
   }
@@ -154,7 +122,7 @@ export function ClientFormDialog({
   function handleOpenChange(value: boolean) {
     if (!value) {
       form.reset();
-      setTagInput("");
+      setTreatmentInput("");
       setShowSuggestions(false);
     }
     onOpenChange(value);
@@ -222,58 +190,26 @@ export function ClientFormDialog({
             />
           </div>
 
-          {/* Note */}
+          {/* Trattamento Richiesto */}
           <div className="space-y-2">
-            <Label htmlFor="note">Note</Label>
-            <Textarea id="note" {...form.register("note")} rows={3} />
-          </div>
-
-          {/* Trattamenti / Tags */}
-          <div className="space-y-2">
-            <Label>Trattamenti / Tags</Label>
+            <Label>Trattamento Richiesto</Label>
             <div className="relative">
-              <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-3 py-1.5">
-                {tags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="gap-1 text-xs"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="ml-0.5 rounded-full hover:bg-muted"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                <input
-                  ref={tagInputRef}
-                  value={tagInput}
-                  onChange={(e) => {
-                    setTagInput(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={() => {
-                    // Delay to allow click on suggestion
-                    setTimeout(() => {
-                      addTag(tagInput);
-                      setShowSuggestions(false);
-                    }, 150);
-                  }}
-                  placeholder={tags.length === 0 ? "es. lombalgia, massaggio..." : ""}
-                  className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                />
-              </div>
+              <Input
+                ref={treatmentInputRef}
+                value={treatmentInput}
+                onChange={(e) => {
+                  setTreatmentInput(e.target.value);
+                  form.setValue("service_interest", e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowSuggestions(false), 150);
+                }}
+                placeholder="es. lombalgia, massaggio rilassante..."
+              />
               {showSuggestions && filteredSuggestions.length > 0 && (
-                <div
-                  ref={suggestionsRef}
-                  className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md"
-                >
+                <div className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
                   {filteredSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
@@ -281,8 +217,8 @@ export function ClientFormDialog({
                       className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        addTag(suggestion);
-                        tagInputRef.current?.focus();
+                        selectTreatment(suggestion);
+                        treatmentInputRef.current?.focus();
                       }}
                     >
                       {suggestion}
@@ -292,8 +228,14 @@ export function ClientFormDialog({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Digita e premi Invio o virgola per aggiungere. I valori già usati compariranno come suggerimenti.
+              Digita il trattamento richiesto. I valori già usati compariranno come suggerimenti.
             </p>
+          </div>
+
+          {/* Note */}
+          <div className="space-y-2">
+            <Label htmlFor="note">Note</Label>
+            <Textarea id="note" {...form.register("note")} rows={3} />
           </div>
 
           {/* Actions */}

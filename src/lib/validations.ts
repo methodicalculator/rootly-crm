@@ -6,9 +6,9 @@ export const clientFormSchema = z.object({
   email: z.string().min(1, "L'email è obbligatoria").email("Email non valida"),
   telefono: z.string().min(1, "Il telefono è obbligatorio"),
   birth_date: z.string().optional(),
+  service_interest: z.string().optional(),
   status: z.enum(["attivo", "inattivo", "da_ricontattare"]),
   note: z.string().optional(),
-  tags: z.array(z.string()).optional(),
 });
 
 export type ClientFormValues = z.infer<typeof clientFormSchema>;
