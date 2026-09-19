@@ -7,7 +7,6 @@ import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
 
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { SalesPipelineSelect } from "@/components/clients/SalesPipelineSelect";
@@ -181,19 +180,14 @@ export default function ClientsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted">
+                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Data Contatto</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Nome</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">Contatto</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Stato Cliente</th>
-                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Fonte</th>
-                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Data Contatto</th>
               </tr>
             </thead>
             <tbody>
               {filteredClients.map((client) => {
-                const sourceCfg = client.source
-                  ? CLIENT_SOURCE_CONFIG[client.source]
-                  : null;
-
                 const isHighlighted = highlightId === client.id;
                 return (
                   <tr
@@ -203,6 +197,11 @@ export default function ClientsPage() {
                       isHighlighted ? "bg-primary/10 ring-2 ring-primary/30" : ""
                     }`}
                   >
+                    <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">
+                      {client.created_at
+                        ? new Date(client.created_at).toLocaleDateString("it-IT")
+                        : "\u2014"}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
                         <button
@@ -261,20 +260,6 @@ export default function ClientsPage() {
                         clientEmail={client.email}
                         clientPhone={client.telefono}
                       />
-                    </td>
-                    <td className="hidden px-4 py-3 lg:table-cell">
-                      {sourceCfg && (
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${sourceCfg.color}`}
-                        >
-                          {sourceCfg.label}
-                        </span>
-                      )}
-                    </td>
-                    <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">
-                      {client.created_at
-                        ? new Date(client.created_at).toLocaleDateString("it-IT")
-                        : "\u2014"}
                     </td>
                   </tr>
                 );

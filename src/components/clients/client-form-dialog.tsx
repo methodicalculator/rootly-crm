@@ -45,6 +45,9 @@ export function ClientFormDialog({
       cognome: "",
       email: "",
       telefono: "",
+      indirizzo: "",
+      citta: "",
+      cap: "",
       birth_date: "",
       service_interest: "",
       note: "",
@@ -96,6 +99,9 @@ export function ClientFormDialog({
         cognome: values.cognome,
         email: values.email || null,
         telefono: values.telefono || null,
+        indirizzo: values.indirizzo || null,
+        citta: values.citta || null,
+        cap: values.cap || null,
         birth_date: values.birth_date || null,
         service_interest: values.service_interest || null,
         status: values.status,
@@ -188,6 +194,24 @@ export function ClientFormDialog({
               type="date"
               {...form.register("birth_date")}
             />
+          </div>
+
+          {/* Indirizzo */}
+          <div className="space-y-2">
+            <Label htmlFor="indirizzo">Indirizzo</Label>
+            <Input id="indirizzo" {...form.register("indirizzo")} />
+          </div>
+
+          {/* Città / CAP */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="citta">Citt&agrave;</Label>
+              <Input id="citta" {...form.register("citta")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cap">CAP</Label>
+              <Input id="cap" {...form.register("cap")} maxLength={5} />
+            </div>
           </div>
 
           {/* Trattamento Richiesto */}

@@ -5,6 +5,9 @@ export const clientFormSchema = z.object({
   cognome: z.string().min(1, "Il cognome è obbligatorio"),
   email: z.string().min(1, "L'email è obbligatoria").email("Email non valida"),
   telefono: z.string().min(1, "Il telefono è obbligatorio"),
+  indirizzo: z.string().optional(),
+  citta: z.string().optional(),
+  cap: z.string().optional(),
   birth_date: z.string().optional(),
   service_interest: z.string().optional(),
   status: z.enum(["attivo", "inattivo", "da_ricontattare"]),
@@ -61,7 +64,6 @@ export const clientEditSchema = z.object({
   birth_date: z.string().optional(),
   service_interest: z.string().optional(),
   note: z.string().optional(),
-  tags: z.array(z.string()).optional(),
 });
 
 export type ClientEditValues = z.infer<typeof clientEditSchema>;

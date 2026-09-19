@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -16,17 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, X, Circle, CheckCircle2 } from "lucide-react";
+import { Loader2, Circle, CheckCircle2 } from "lucide-react";
 import { clientEditSchema, type ClientEditValues } from "@/lib/validations";
-import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG, CLIENT_SOURCE_CONFIG } from "@/lib/constants";
+import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import type { Client, LostReason } from "@/types";
 
@@ -118,7 +110,10 @@ export function ClientDetailSheet({
   onClientUpdated,
 }: ClientDetailSheetProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [tagInput, setTagInput] = useState("");
+  const [treatmentInput, setTreatmentInput] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const treatmentInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ClientEditValues>({
     resolver: zodResolver(clientEditSchema),
@@ -133,12 +128,12 @@ export function ClientDetailSheet({
       birth_date: "",
       service_interest: "",
       note: "",
-      tags: [],
     },
   });
 
   useEffect(() => {
     if (client) {
+      const si = client.service_interest ?? "";
       form.reset({
         nome: client.nome,
         cognome: client.cognome,
@@ -148,35 +143,47 @@ export function ClientDetailSheet({
         citta: client.citta ?? "",
         cap: client.cap ?? "",
         birth_date: client.birth_date ?? "",
-        service_interest: client.service_interest ?? "",
+        service_interest: si,
         note: client.note ?? "",
-        tags: client.tags ?? [],
       });
-      setTagInput("");
+      setTreatmentInput(si);
     }
   }, [client, form]);
 
-  const tags = form.watch("tags") ?? [];
+  // Fetch distinct service_interest values for autocomplete
+  useEffect(() => {
+    if (!client) return;
+    async function fetchSuggestions() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("clients")
+        .select("service_interest")
+        .eq("organization_id", organizationId)
+        .not("service_interest", "is", null);
 
-  function addTag(value: string) {
+      if (!data) return;
+
+      const unique = new Set<string>();
+      for (const row of data) {
+        if (row.service_interest) unique.add(row.service_interest);
+      }
+      setSuggestions(Array.from(unique).sort((a, b) => a.localeCompare(b)));
+    }
+    fetchSuggestions();
+  }, [client, organizationId]);
+
+  const filteredSuggestions = treatmentInput.trim()
+    ? suggestions.filter((s) =>
+        s.toLowerCase().includes(treatmentInput.trim().toLowerCase())
+      )
+    : [];
+
+  function selectTreatment(value: string) {
     const trimmed = value.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    form.setValue("tags", [...tags, trimmed]);
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    form.setValue("tags", tags.filter((t) => t !== tag));
-  }
-
-  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(tagInput);
-    }
-    if (e.key === "Backspace" && !tagInput && tags.length > 0) {
-      removeTag(tags[tags.length - 1]);
-    }
+    if (!trimmed) return;
+    form.setValue("service_interest", trimmed);
+    setTreatmentInput(trimmed);
+    setShowSuggestions(false);
   }
 
   async function onSubmit(values: ClientEditValues) {
@@ -195,7 +202,6 @@ export function ClientDetailSheet({
       birth_date: values.birth_date || null,
       service_interest: values.service_interest || null,
       note: values.note || null,
-      tags: values.tags && values.tags.length > 0 ? values.tags : null,
     };
 
     const { data, error } = await supabase
@@ -220,9 +226,7 @@ export function ClientDetailSheet({
   if (!client) return null;
 
   const stageCfg = SALES_STAGE_CONFIG[client.sales_stage ?? "new"];
-  const sourceCfg = client.source ? CLIENT_SOURCE_CONFIG[client.source] : null;
   const timeline = buildTimeline(client);
-  const isWebhookSource = client.source === "meta_ads" || client.source === "google_ads";
 
   return (
     <Sheet open={!!client} onOpenChange={onOpenChange}>
@@ -302,41 +306,46 @@ export function ClientDetailSheet({
               <Input id="edit-birth_date" type="date" {...form.register("birth_date")} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Servizio di Interesse</Label>
-                <Select
-                  value={form.watch("service_interest") ?? ""}
-                  onValueChange={(val) => form.setValue("service_interest", val)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleziona..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Fisioterapia">Fisioterapia</SelectItem>
-                    <SelectItem value="Osteopatia">Osteopatia</SelectItem>
-                    <SelectItem value="Massoterapia">Massoterapia</SelectItem>
-                    <SelectItem value="Riflessologia">Riflessologia</SelectItem>
-                    <SelectItem value="Altro">Altro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Fonte Lead</Label>
-                {isWebhookSource && sourceCfg ? (
-                  <div className="flex h-9 items-center">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${sourceCfg.color}`}>
-                      {sourceCfg.label}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex h-9 items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {sourceCfg ? sourceCfg.label : "—"}
-                    </span>
+            {/* Trattamento Richiesto */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Trattamento Richiesto</Label>
+              <div className="relative">
+                <Input
+                  ref={treatmentInputRef}
+                  value={treatmentInput}
+                  onChange={(e) => {
+                    setTreatmentInput(e.target.value);
+                    form.setValue("service_interest", e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                  placeholder="es. lombalgia, massaggio rilassante..."
+                />
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+                    {filteredSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectTreatment(suggestion);
+                          treatmentInputRef.current?.focus();
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Digita il trattamento richiesto. I valori già usati compariranno come suggerimenti.
+              </p>
             </div>
           </section>
 
@@ -348,36 +357,6 @@ export function ClientDetailSheet({
               rows={4}
               placeholder="Nessuna nota..."
             />
-          </section>
-
-          {/* Tags */}
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">Tags</h3>
-            <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-3 py-1.5">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="gap-1 text-xs">
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="ml-0.5 rounded-full hover:bg-muted"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={() => addTag(tagInput)}
-                placeholder={tags.length === 0 ? "es. lombalgia, urgente..." : ""}
-                className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Premi Invio o virgola per aggiungere un tag
-            </p>
           </section>
 
           {/* Timeline Stato */}
