@@ -203,7 +203,7 @@ export function ClientDetailSheet({
     const supabase = createClient();
     const { error } = await supabase
       .from("clients")
-      .delete()
+      .update({ archived_at: new Date().toISOString() })
       .eq("id", client.id)
       .eq("organization_id", organizationId);
 
@@ -211,11 +211,11 @@ export function ClientDetailSheet({
     setShowDeleteConfirm(false);
 
     if (error) {
-      toast.error("Errore nell'eliminazione", { description: error.message });
+      toast.error("Errore nell'archiviazione", { description: error.message });
       return;
     }
 
-    toast.success("Lead eliminato");
+    toast.success("Lead archiviato");
     onOpenChange(false);
     onClientDeleted?.(client.id);
   }
@@ -367,7 +367,7 @@ export function ClientDetailSheet({
                 onClick={() => setShowDeleteConfirm(true)}
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Elimina
+                Archivia
               </Button>
               <Button
                 type="submit"
@@ -385,10 +385,10 @@ export function ClientDetailSheet({
         <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Eliminare questo lead?</DialogTitle>
+              <DialogTitle>Archiviare questo lead?</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Sei sicuro di voler eliminare <strong>{client.nome} {client.cognome}</strong>? L&apos;azione non è reversibile.
+              Sei sicuro di voler archiviare <strong>{client.nome} {client.cognome}</strong>? Il lead non comparirà più nelle liste attive.
             </p>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
@@ -404,7 +404,7 @@ export function ClientDetailSheet({
                 disabled={deleting}
               >
                 {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Elimina Lead
+                Archivia Lead
               </Button>
             </DialogFooter>
           </DialogContent>

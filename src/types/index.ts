@@ -128,6 +128,7 @@ export interface Client {
   sessions_count: number | null;
   lost_reason: LostReason | null;
   created_by: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }

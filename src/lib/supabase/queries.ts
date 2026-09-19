@@ -47,10 +47,9 @@ export async function getClients(
   managerOrgIds?: string[],
   staffOrgIds?: string[]
 ) {
-  return getOrgFilteredQuery("clients", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
-    "created_at",
-    { ascending: false }
-  );
+  return getOrgFilteredQuery("clients", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
 }
 
 export async function getCampaigns(

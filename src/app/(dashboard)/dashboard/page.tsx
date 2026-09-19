@@ -104,6 +104,7 @@ function DashboardContent() {
     let query = supabase
       .from("clients")
       .select("*")
+      .is("archived_at", null)
       .in("sales_stage", ["new", "contacted"])
       .order("created_at", { ascending: false })
       .limit(5);
@@ -162,6 +163,7 @@ function DashboardContent() {
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
+            .is("archived_at", null)
             .gte("created_at", startOfMonth)
         ),
         // 2) Clienti Mese: CLIENT_STAGES con created_at nel mese corrente
@@ -169,6 +171,7 @@ function DashboardContent() {
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
+            .is("archived_at", null)
             .in("sales_stage", [...CLIENT_STAGES])
             .gte("created_at", startOfMonth)
         ),
@@ -177,6 +180,7 @@ function DashboardContent() {
           supabase
             .from("clients")
             .select("revenue")
+            .is("archived_at", null)
             .not("revenue", "is", null)
             .in("sales_stage", [...CLIENT_STAGES])
             .gte("updated_at", startOfMonth)
@@ -186,6 +190,7 @@ function DashboardContent() {
           supabase
             .from("clients")
             .select("created_at")
+            .is("archived_at", null)
             .gte("created_at", startOfMonth)
             .order("created_at", { ascending: true })
         ),

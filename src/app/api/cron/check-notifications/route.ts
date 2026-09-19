@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     .from("clients")
     .select("id, organization_id, nome, cognome, appointment_date")
     .eq("sales_stage", "appointment_scheduled")
+    .is("archived_at", null)
     .is("conversion_amount", null)
     .lt("appointment_date", now.toISOString())
     .not("appointment_date", "is", null);
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
     .from("clients")
     .select("id, organization_id, nome, cognome")
     .eq("sales_stage", "new")
+    .is("archived_at", null)
     .lt("created_at", twelveHoursAgo);
 
   for (const client of newLeads ?? []) {

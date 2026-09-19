@@ -127,11 +127,13 @@ export default function GestioneStudiPage() {
             .from("clients")
             .select("id", { count: "exact", head: true })
             .eq("organization_id", org.id)
+            .is("archived_at", null)
             .in("sales_stage", CLIENT_STAGES),
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
             .eq("organization_id", org.id)
+            .is("archived_at", null)
             .gte("created_at", startOfMonth),
           supabase
             .from("staff_organizations")

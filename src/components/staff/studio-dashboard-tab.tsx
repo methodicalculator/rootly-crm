@@ -84,6 +84,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
       .from("clients")
       .select("*")
       .eq("organization_id", organizationId)
+      .is("archived_at", null)
       .in("sales_stage", ["new", "contacted"])
       .order("created_at", { ascending: false })
       .limit(5);
@@ -111,6 +112,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
+            .is("archived_at", null)
             .gte("created_at", startOfMonth)
         ),
         // 2) Clienti Mese
@@ -118,6 +120,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           supabase
             .from("clients")
             .select("id", { count: "exact", head: true })
+            .is("archived_at", null)
             .in("sales_stage", [...CLIENT_STAGES])
             .gte("created_at", startOfMonth)
         ),
@@ -126,6 +129,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           supabase
             .from("clients")
             .select("revenue")
+            .is("archived_at", null)
             .not("revenue", "is", null)
             .in("sales_stage", [...CLIENT_STAGES])
             .gte("updated_at", startOfMonth)
@@ -135,6 +139,7 @@ export function StudioDashboardTab({ organizationId }: { organizationId: string 
           supabase
             .from("clients")
             .select("created_at")
+            .is("archived_at", null)
             .gte("created_at", startOfMonth)
             .order("created_at", { ascending: true })
         ),

@@ -91,6 +91,7 @@ export function StudioCampaignsTab({ organizationId }: { organizationId: string 
         .from("clients")
         .select("id, created_at")
         .eq("organization_id", organizationId)
+        .is("archived_at", null)
         .gte("created_at", fromISO)
         .lte("created_at", toISO),
     ]);
