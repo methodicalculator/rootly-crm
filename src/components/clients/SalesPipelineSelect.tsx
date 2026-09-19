@@ -397,7 +397,7 @@ export function SalesPipelineSelect({
       <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Percorso Acquistato</DialogTitle>
+            <DialogTitle>Percorso</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {(currentRevenue ?? 0) > 0 && (

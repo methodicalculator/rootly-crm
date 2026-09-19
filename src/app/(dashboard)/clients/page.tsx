@@ -208,11 +208,11 @@ export default function ClientsPage() {
                         : "\u2014"}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-col">
+                      <div className="flex flex-col gap-1">
                         <button
                           type="button"
                           onClick={() => setSelectedClient(client)}
-                          className="flex items-center gap-1.5 text-left font-medium text-foreground cursor-pointer hover:text-primary hover:underline"
+                          className="flex items-center gap-1.5 py-1 text-left font-medium text-foreground cursor-pointer hover:text-primary hover:underline"
                         >
                           {client.nome} {client.cognome}
                           {client.note && (
@@ -227,7 +227,8 @@ export default function ClientsPage() {
                         {client.telefono && (
                           <a
                             href={`tel:${client.telefono}`}
-                            className="mt-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80 md:hidden"
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1 flex items-center gap-1 py-1 text-xs text-primary hover:text-primary/80 md:hidden"
                           >
                             <Phone className="h-3 w-3" />
                             {client.telefono}
