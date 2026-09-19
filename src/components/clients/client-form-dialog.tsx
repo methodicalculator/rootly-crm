@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -14,17 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, X } from "lucide-react";
 import { clientFormSchema, type ClientFormValues } from "@/lib/validations";
 import { createClientRecord } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
 
 interface ClientFormDialogProps {
   open: boolean;
@@ -41,6 +35,10 @@ export function ClientFormDialog({
 }: ClientFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -49,12 +47,7 @@ export function ClientFormDialog({
       cognome: "",
       email: "",
       telefono: "",
-      indirizzo: "",
-      citta: "",
-      cap: "",
       birth_date: "",
-      service_interest: undefined,
-      source: undefined,
       note: "",
       status: "attivo",
       tags: [],
@@ -63,11 +56,46 @@ export function ClientFormDialog({
 
   const tags = form.watch("tags") ?? [];
 
+  // Fetch distinct tags used by this organization for autocomplete
+  useEffect(() => {
+    if (!open) return;
+    async function fetchSuggestions() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("clients")
+        .select("tags, service_interest")
+        .eq("organization_id", organizationId);
+
+      if (!data) return;
+
+      const allTags = new Set<string>();
+      for (const row of data) {
+        if (row.tags) {
+          for (const t of row.tags) allTags.add(t);
+        }
+        if (row.service_interest) {
+          allTags.add(row.service_interest);
+        }
+      }
+      setSuggestions(Array.from(allTags).sort((a, b) => a.localeCompare(b)));
+    }
+    fetchSuggestions();
+  }, [open, organizationId]);
+
+  const filteredSuggestions = tagInput.trim()
+    ? suggestions.filter(
+        (s) =>
+          s.toLowerCase().includes(tagInput.trim().toLowerCase()) &&
+          !tags.includes(s)
+      )
+    : [];
+
   function addTag(value: string) {
     const trimmed = value.trim();
     if (!trimmed || tags.includes(trimmed)) return;
     form.setValue("tags", [...tags, trimmed]);
     setTagInput("");
+    setShowSuggestions(false);
   }
 
   function removeTag(tag: string) {
@@ -85,25 +113,25 @@ export function ClientFormDialog({
     if (e.key === "Backspace" && !tagInput && tags.length > 0) {
       removeTag(tags[tags.length - 1]);
     }
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
   }
 
   async function onSubmit(values: ClientFormValues) {
     setSubmitting(true);
+    const tagsArray = values.tags && values.tags.length > 0 ? values.tags : null;
     const { error } = await createClientRecord(
       {
         nome: values.nome,
         cognome: values.cognome,
         email: values.email || null,
         telefono: values.telefono || null,
-        indirizzo: values.indirizzo || null,
-        citta: values.citta || null,
-        cap: values.cap || null,
         birth_date: values.birth_date || null,
-        service_interest: values.service_interest || null,
-        source: values.source || null,
+        service_interest: tagsArray ? tagsArray[0] : null,
         status: values.status,
         note: values.note || null,
-        tags: values.tags && values.tags.length > 0 ? values.tags : null,
+        tags: tagsArray,
       },
       organizationId
     );
@@ -127,6 +155,7 @@ export function ClientFormDialog({
     if (!value) {
       form.reset();
       setTagInput("");
+      setShowSuggestions(false);
     }
     onOpenChange(value);
   }
@@ -173,8 +202,13 @@ export function ClientFormDialog({
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="telefono">Telefono</Label>
+              <Label htmlFor="telefono">Telefono *</Label>
               <Input id="telefono" {...form.register("telefono")} />
+              {form.formState.errors.telefono && (
+                <p className="text-xs text-red-500">
+                  {form.formState.errors.telefono.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -188,103 +222,77 @@ export function ClientFormDialog({
             />
           </div>
 
-          {/* Indirizzo */}
-          <div className="space-y-2">
-            <Label htmlFor="indirizzo">Indirizzo</Label>
-            <Input id="indirizzo" {...form.register("indirizzo")} />
-          </div>
-
-          {/* Città / CAP */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="citta">Città</Label>
-              <Input id="citta" {...form.register("citta")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cap">CAP</Label>
-              <Input id="cap" {...form.register("cap")} maxLength={5} />
-            </div>
-          </div>
-
-          {/* Servizio di interesse / Fonte */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Servizio di Interesse</Label>
-              <Select
-                value={form.watch("service_interest") ?? ""}
-                onValueChange={(val) => form.setValue("service_interest", val)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleziona..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fisioterapia">Fisioterapia</SelectItem>
-                  <SelectItem value="Osteopatia">Osteopatia</SelectItem>
-                  <SelectItem value="Massoterapia">Massoterapia</SelectItem>
-                  <SelectItem value="Riflessologia">Riflessologia</SelectItem>
-                  <SelectItem value="Altro">Altro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Fonte Lead</Label>
-              <Select
-                value={form.watch("source") ?? ""}
-                onValueChange={(val) =>
-                  form.setValue("source", val as ClientFormValues["source"])
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleziona..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="meta_ads">Meta Ads</SelectItem>
-                  <SelectItem value="google_ads">Google Ads</SelectItem>
-                  <SelectItem value="referral">Referral</SelectItem>
-                  <SelectItem value="organic">Organico</SelectItem>
-                  <SelectItem value="other">Altro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           {/* Note */}
           <div className="space-y-2">
             <Label htmlFor="note">Note</Label>
             <Textarea id="note" {...form.register("note")} rows={3} />
           </div>
 
-          {/* Tags */}
+          {/* Trattamenti / Tags */}
           <div className="space-y-2">
-            <Label>Tags</Label>
-            <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-3 py-1.5">
-              {tags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="secondary"
-                  className="gap-1 text-xs"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="ml-0.5 rounded-full hover:bg-muted"
+            <Label>Trattamenti / Tags</Label>
+            <div className="relative">
+              <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-3 py-1.5">
+                {tags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="gap-1 text-xs"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={() => addTag(tagInput)}
-                placeholder={tags.length === 0 ? "es. lombalgia, urgente..." : ""}
-                className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="ml-0.5 rounded-full hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <input
+                  ref={tagInputRef}
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={() => {
+                    // Delay to allow click on suggestion
+                    setTimeout(() => {
+                      addTag(tagInput);
+                      setShowSuggestions(false);
+                    }, 150);
+                  }}
+                  placeholder={tags.length === 0 ? "es. lombalgia, massaggio..." : ""}
+                  className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+                >
+                  {filteredSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        addTag(suggestion);
+                        tagInputRef.current?.focus();
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Premi Invio o virgola per aggiungere un tag
+              Digita e premi Invio o virgola per aggiungere. I valori già usati compariranno come suggerimenti.
             </p>
           </div>
 
