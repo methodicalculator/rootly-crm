@@ -10,6 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "./logout-button";
 import { MetaIntegrationCard } from "./meta-integration-card";
+import { CalComCard } from "./cal-com-card";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -69,7 +70,10 @@ export default async function SettingsPage() {
       </Card>
 
       {profile?.role === "owner" && profile.organization_id && (
-        <MetaIntegrationCard organizationId={profile.organization_id} />
+        <>
+          <MetaIntegrationCard organizationId={profile.organization_id} />
+          <CalComCard organizationId={profile.organization_id} />
+        </>
       )}
 
       <Card>

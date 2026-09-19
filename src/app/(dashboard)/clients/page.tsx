@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Users, Plus, Loader2, Mail, Phone, StickyNote } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getClients } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
 import { CLIENT_SOURCE_CONFIG } from "@/lib/constants";
 
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
@@ -35,6 +36,7 @@ export default function ClientsPage() {
   );
   const { effectiveOrgId, isAdmin, staffOrgIds, loading: orgLoading } = useOrganization();
   const [clients, setClients] = useState<Client[]>([]);
+  const [calComLink, setCalComLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -52,6 +54,20 @@ export default function ClientsPage() {
     if (orgLoading) return;
     fetchClients();
   }, [orgLoading, fetchClients]);
+
+  useEffect(() => {
+    if (!effectiveOrgId) return;
+    async function fetchCalComLink() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("organizations")
+        .select("cal_com_link")
+        .eq("id", effectiveOrgId!)
+        .single();
+      setCalComLink(data?.cal_com_link ?? null);
+    }
+    fetchCalComLink();
+  }, [effectiveOrgId]);
 
   // Auto-scroll to highlighted client
   useEffect(() => {
@@ -241,6 +257,9 @@ export default function ClientsPage() {
                         organizationId={client.organization_id!}
                         clientName={`${client.nome} ${client.cognome}`}
                         clientNote={client.note}
+                        calComLink={calComLink}
+                        clientEmail={client.email}
+                        clientPhone={client.telefono}
                       />
                     </td>
                     <td className="hidden px-4 py-3 lg:table-cell">

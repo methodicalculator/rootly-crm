@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -21,7 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import { REVENUE_STAGES, STAGE_ORDER } from "@/lib/constants/stages";
-import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
+import { getCalApi } from "@calcom/embed-react";
 import type { Client, SalesStage, LostReason } from "@/types";
 
 const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
@@ -39,6 +39,9 @@ interface SalesPipelineSelectProps {
   organizationId: string;
   clientName: string;
   clientNote?: string | null;
+  calComLink?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
 }
 
 const LOST_REASONS: LostReason[] = [
@@ -57,10 +60,12 @@ export function SalesPipelineSelect({
   organizationId,
   clientName,
   clientNote,
+  calComLink,
+  clientEmail,
+  clientPhone,
 }: SalesPipelineSelectProps) {
   const [updating, setUpdating] = useState(false);
   const [showLostReason, setShowLostReason] = useState(false);
-  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showConvertedDialog, setShowConvertedDialog] = useState(false);
   const [convertedImporto, setConvertedImporto] = useState("");
   const [convertedSessions, setConvertedSessions] = useState("");
@@ -148,14 +153,17 @@ export function SalesPipelineSelect({
 
     if (stage === "lost") {
       setShowLostReason(true);
-      setShowAppointmentDialog(false);
       return;
     }
 
     if (stage === "appointment_scheduled") {
-      setShowAppointmentDialog(true);
+      if (!calComLink) {
+        toast.error("Configura il link Cal.com nelle impostazioni prima di fissare appuntamenti");
+        return;
+      }
       setShowLostReason(false);
       setShowConvertedDialog(false);
+      openCalPopup();
       return;
     }
 
@@ -163,7 +171,6 @@ export function SalesPipelineSelect({
       setShowSingolaSedutaDialog(true);
       setSingolaSedutaImporto("");
       setShowLostReason(false);
-      setShowAppointmentDialog(false);
       setShowConvertedDialog(false);
       return;
     }
@@ -173,21 +180,41 @@ export function SalesPipelineSelect({
       setConvertedImporto("");
       setConvertedSessions("");
       setShowLostReason(false);
-      setShowAppointmentDialog(false);
       setShowSingolaSedutaDialog(false);
       return;
     }
 
     setShowLostReason(false);
-    setShowAppointmentDialog(false);
     setShowConvertedDialog(false);
     setShowSingolaSedutaDialog(false);
     updateStage(stage);
   }
 
-  function handleAppointmentSaved(appointmentDateISO: string) {
-    setShowAppointmentDialog(false);
-    updateStage("appointment_scheduled", undefined, appointmentDateISO);
+  async function openCalPopup() {
+    try {
+      const cal = await getCalApi();
+      cal("ui", { hideEventTypeDetails: false, layout: "month_view" });
+      cal("on", {
+        action: "bookingSuccessful",
+        callback: (e) => {
+          const detail = e.detail;
+          const appointmentDate = detail?.data?.date || new Date().toISOString();
+          updateStage("appointment_scheduled", undefined, appointmentDate);
+        },
+      });
+      const params = new URLSearchParams();
+      params.set("name", clientName);
+      if (clientEmail) params.set("email", clientEmail);
+      if (clientPhone) params.set("phone", clientPhone);
+      const calLink = `${calComLink}?${params.toString()}`;
+      cal("modal", {
+        calLink,
+        config: { layout: "month_view" },
+      });
+    } catch (err) {
+      console.error("[CAL-COM] Error opening popup:", err);
+      toast.error("Errore nell'apertura del calendario Cal.com");
+    }
   }
 
   function handleLostReasonSelect(value: string) {
@@ -320,16 +347,6 @@ export function SalesPipelineSelect({
           </span>
         </div>
       )}
-
-      <AppointmentFormDialog
-        open={showAppointmentDialog}
-        onOpenChange={setShowAppointmentDialog}
-        organizationId={organizationId}
-        clientId={clientId}
-        clientName={clientName}
-        clientNote={clientNote}
-        onSuccess={handleAppointmentSaved}
-      />
 
       <Dialog open={showSingolaSedutaDialog} onOpenChange={setShowSingolaSedutaDialog}>
         <DialogContent className="sm:max-w-md">
