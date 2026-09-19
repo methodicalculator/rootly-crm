@@ -23,7 +23,11 @@
       "Bash(npx next lint:*)",
       "Bash(node -e:*)",
       "Bash(cat:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(for func in \"getOrgFilteredQuery\" \"getClients\" \"getCampaigns\" \"getAppointments\" \"getAppointmentsWithClients\" \"getCommunications\" \"getEvents\" \"createClientRecord\" \"createAppointmentRecord\" \"createCampaignRecord\" \"getManagerOrgIds\" \"getStaffOrgIds\" \"getOrganizations\" \"getAllOrganizations\" \"getPendingOrganizations\" \"approveOrganization\" \"suspendOrganization\")",
+      "Bash(do echo \"=== $func ===\" grep -r \"$func\" /Users/jacopomassaretti/Documents/Website/rootly-crm/src --include=\"*.ts\" --include=\"*.tsx\")",
+      "Bash(grep:*)",
+      "Bash(xargs -I {} bash -c \"echo ''''=== {} ==='''' && grep -r ''''from.*{}'''' /Users/jacopomassaretti/Documents/Website/rootly-crm/src 2>/dev/null | head -1 || echo ''''POTENTIALLY UNUSED''''\")"
     ]
   }
 }

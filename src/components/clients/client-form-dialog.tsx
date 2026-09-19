@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { clientFormSchema, type ClientFormValues } from "@/lib/validations";
 import { createClientRecord } from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/client";
+import { TreatmentInputField } from "@/components/clients/treatment-input-field";
 
 interface ClientFormDialogProps {
   open: boolean;
@@ -34,9 +34,6 @@ export function ClientFormDialog({
 }: ClientFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [treatmentInput, setTreatmentInput] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const treatmentInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -54,42 +51,6 @@ export function ClientFormDialog({
       status: "attivo",
     },
   });
-
-  // Fetch distinct service_interest values used by this organization
-  useEffect(() => {
-    if (!open) return;
-    async function fetchSuggestions() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("clients")
-        .select("service_interest")
-        .eq("organization_id", organizationId)
-        .not("service_interest", "is", null);
-
-      if (!data) return;
-
-      const unique = new Set<string>();
-      for (const row of data) {
-        if (row.service_interest) unique.add(row.service_interest);
-      }
-      setSuggestions(Array.from(unique).sort((a, b) => a.localeCompare(b)));
-    }
-    fetchSuggestions();
-  }, [open, organizationId]);
-
-  const filteredSuggestions = treatmentInput.trim()
-    ? suggestions.filter((s) =>
-        s.toLowerCase().includes(treatmentInput.trim().toLowerCase())
-      )
-    : [];
-
-  function selectTreatment(value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    form.setValue("service_interest", trimmed);
-    setTreatmentInput(trimmed);
-    setShowSuggestions(false);
-  }
 
   async function onSubmit(values: ClientFormValues) {
     setSubmitting(true);
@@ -129,7 +90,6 @@ export function ClientFormDialog({
     if (!value) {
       form.reset();
       setTreatmentInput("");
-      setShowSuggestions(false);
     }
     onOpenChange(value);
   }
@@ -215,46 +175,15 @@ export function ClientFormDialog({
           </div>
 
           {/* Trattamento Richiesto */}
-          <div className="space-y-2">
-            <Label>Trattamento Richiesto</Label>
-            <div className="relative">
-              <Input
-                ref={treatmentInputRef}
-                value={treatmentInput}
-                onChange={(e) => {
-                  setTreatmentInput(e.target.value);
-                  form.setValue("service_interest", e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => {
-                  setTimeout(() => setShowSuggestions(false), 150);
-                }}
-                placeholder="es. lombalgia, massaggio rilassante..."
-              />
-              {showSuggestions && filteredSuggestions.length > 0 && (
-                <div className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
-                  {filteredSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        selectTreatment(suggestion);
-                        treatmentInputRef.current?.focus();
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Digita il trattamento richiesto. I valori già usati compariranno come suggerimenti.
-            </p>
-          </div>
+          <TreatmentInputField
+            value={treatmentInput}
+            onChange={(val) => {
+              setTreatmentInput(val);
+              form.setValue("service_interest", val);
+            }}
+            organizationId={organizationId}
+            active={open}
+          />
 
           {/* Note */}
           <div className="space-y-2">

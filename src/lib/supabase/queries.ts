@@ -9,7 +9,7 @@ import type { AccessLevel } from "@/types";
  *   non applica filtro → vede tutto
  * - Se manager senza impersonate: filtra per orgIds assegnati
  */
-export function getOrgFilteredQuery(
+function getOrgFilteredQuery(
   tableName: string,
   effectiveOrgId: string | null,
   isAdmin: boolean,
@@ -65,18 +65,6 @@ export async function getCampaigns(
   );
 }
 
-export async function getAppointments(
-  effectiveOrgId: string | null,
-  isAdmin: boolean,
-  managerOrgIds?: string[],
-  staffOrgIds?: string[]
-) {
-  return getOrgFilteredQuery("appointments", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
-    "start_time",
-    { ascending: true }
-  );
-}
-
 export async function getAppointmentsWithClients(
   effectiveOrgId: string | null,
   isAdmin: boolean,
@@ -101,30 +89,6 @@ export async function getAppointmentsWithClients(
   }
 
   return query;
-}
-
-export async function getCommunications(
-  effectiveOrgId: string | null,
-  isAdmin: boolean,
-  managerOrgIds?: string[],
-  staffOrgIds?: string[]
-) {
-  return getOrgFilteredQuery("communications", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
-    "data_comunicazione",
-    { ascending: false }
-  );
-}
-
-export async function getEvents(
-  effectiveOrgId: string | null,
-  isAdmin: boolean,
-  managerOrgIds?: string[],
-  staffOrgIds?: string[]
-) {
-  return getOrgFilteredQuery("events", effectiveOrgId, isAdmin, managerOrgIds, staffOrgIds).order(
-    "start_at",
-    { ascending: true }
-  );
 }
 
 // ============================================
@@ -278,79 +242,3 @@ export async function getOrganizations(opts: {
   return query.eq("id", "00000000-0000-0000-0000-000000000000");
 }
 
-/** Shortcut: tutte le org (rispetta access level) */
-export async function getAllOrganizations(opts: {
-  accessLevel: AccessLevel | null;
-  userId: string;
-  organizationId: string | null;
-}) {
-  return getOrganizations(opts);
-}
-
-/** Shortcut: solo org pending (rispetta access level) */
-export async function getPendingOrganizations(opts: {
-  accessLevel: AccessLevel | null;
-  userId: string;
-  organizationId: string | null;
-}) {
-  return getOrganizations({ ...opts, status: "pending" });
-}
-
-export async function approveOrganization(
-  orgId: string,
-  adminUserId: string,
-  contractData?: {
-    monthly_budget?: number;
-    contract_start_date?: string;
-    contract_end_date?: string;
-  }
-) {
-  const supabase = createClient();
-
-  // Aggiorna status
-  await supabase
-    .from("organizations")
-    .update({
-      status: "active",
-      approved_at: new Date().toISOString(),
-      approved_by: adminUserId,
-      ...(contractData?.monthly_budget && {
-        monthly_budget: contractData.monthly_budget,
-      }),
-      ...(contractData?.contract_start_date && {
-        contract_start_date: contractData.contract_start_date,
-      }),
-      ...(contractData?.contract_end_date && {
-        contract_end_date: contractData.contract_end_date,
-      }),
-    })
-    .eq("id", orgId);
-
-  // Log attivita
-  await supabase.from("admin_activity_log").insert({
-    admin_user_id: adminUserId,
-    action_type: "approve_org",
-    target_organization_id: orgId,
-    details: contractData || {},
-  });
-}
-
-export async function suspendOrganization(
-  orgId: string,
-  adminUserId: string,
-  reason?: string
-) {
-  const supabase = createClient();
-
-  await supabase
-    .from("organizations")
-    .update({ status: "suspended" })
-    .eq("id", orgId);
-
-  await supabase.from("admin_activity_log").insert({
-    admin_user_id: adminUserId,
-    action_type: "suspend_org",
-    target_organization_id: orgId,
-    details: { reason },
-  });
-}
