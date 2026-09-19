@@ -132,23 +132,23 @@ export function ClientDetailSheet({
   });
 
   useEffect(() => {
-    if (client) {
-      const si = client.service_interest ?? "";
-      form.reset({
-        nome: client.nome,
-        cognome: client.cognome,
-        email: client.email ?? "",
-        telefono: client.telefono ?? "",
-        indirizzo: client.indirizzo ?? "",
-        citta: client.citta ?? "",
-        cap: client.cap ?? "",
-        birth_date: client.birth_date ?? "",
-        service_interest: si,
-        note: client.note ?? "",
-      });
-      setTreatmentInput(si);
-    }
-  }, [client, form]);
+    if (!client) return;
+    const si = client.service_interest ?? "";
+    form.reset({
+      nome: client.nome,
+      cognome: client.cognome,
+      email: client.email ?? "",
+      telefono: client.telefono ?? "",
+      indirizzo: client.indirizzo ?? "",
+      citta: client.citta ?? "",
+      cap: client.cap ?? "",
+      birth_date: client.birth_date ?? "",
+      service_interest: si,
+      note: client.note ?? "",
+    });
+    setTreatmentInput(si);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client?.id]);
 
   // Fetch distinct service_interest values for autocomplete
   useEffect(() => {
