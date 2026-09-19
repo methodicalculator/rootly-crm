@@ -36,23 +36,26 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSuperAdmin, role } = useOrganization();
+  const { isAdmin, isSuperAdmin, role, impersonatingOrgId } = useOrganization();
 
-  const isStaff = role === "staff";
+  const isImpersonating = !!impersonatingOrgId;
+  const isStaff = role === "staff" && !isImpersonating;
 
-  // Determine which nav items to show based on role
-  const showOwnerNav = role === "owner";
+  // When impersonating, show the owner/client nav regardless of real role
+  const showOwnerNav = role === "owner" || isImpersonating;
 
   const adminItems =
-    role === "admin" || role === "super_admin"
+    (role === "admin" || role === "super_admin") && !isImpersonating
       ? ADMIN_NAV_ITEMS
       : [];
 
-  const logoHref = isStaff
-    ? "/staff/studi"
-    : role === "admin" || role === "super_admin"
-      ? "/admin/dashboard-aggregata"
-      : "/dashboard";
+  const logoHref = isImpersonating
+    ? "/dashboard"
+    : isStaff
+      ? "/staff/studi"
+      : role === "admin" || role === "super_admin"
+        ? "/admin/dashboard-aggregata"
+        : "/dashboard";
 
   return (
     <aside className="hidden w-65 shrink-0 border-r border-border bg-card lg:flex lg:flex-col">
