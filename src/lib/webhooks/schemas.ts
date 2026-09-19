@@ -1,18 +1,5 @@
 import { z } from "zod";
 
-// Zapier Lead payload — data from Meta Lead Ads
-export const zapierLeadSchema = z.object({
-  ad_account_id: z.string().min(1, "ad_account_id is required"),
-  nome: z.string().min(1, "nome is required"),
-  cognome: z.string().min(1, "cognome is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  telefono: z.string().optional(),
-  service_interest: z.string().optional(),
-  note: z.string().optional(),
-});
-
-export type ZapierLeadPayload = z.infer<typeof zapierLeadSchema>;
-
 // Make.com Metrics payload — daily campaign performance data
 // Uses z.coerce.number() because Make.com may send numeric values as strings
 export const makeMetricsSchema = z.object({
