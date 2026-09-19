@@ -12,11 +12,18 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Circle, CheckCircle2 } from "lucide-react";
+import { Loader2, Trash2, Circle, CheckCircle2 } from "lucide-react";
 import { clientEditSchema, type ClientEditValues } from "@/lib/validations";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +34,7 @@ interface ClientDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   onClientUpdated: (updated: Client) => void;
+  onClientDeleted?: (clientId: string) => void;
 }
 
 interface TimelineEntry {
@@ -108,8 +116,11 @@ export function ClientDetailSheet({
   onOpenChange,
   organizationId,
   onClientUpdated,
+  onClientDeleted,
 }: ClientDetailSheetProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [treatmentInput, setTreatmentInput] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -221,6 +232,30 @@ export function ClientDetailSheet({
 
     toast.success("Modifiche salvate!");
     onClientUpdated(data as Client);
+  }
+
+  async function handleDelete() {
+    if (!client) return;
+    setDeleting(true);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", client.id)
+      .eq("organization_id", organizationId);
+
+    setDeleting(false);
+    setShowDeleteConfirm(false);
+
+    if (error) {
+      toast.error("Errore nell'eliminazione", { description: error.message });
+      return;
+    }
+
+    toast.success("Lead eliminato");
+    onOpenChange(false);
+    onClientDeleted?.(client.id);
   }
 
   if (!client) return null;
@@ -392,16 +427,57 @@ export function ClientDetailSheet({
 
           {/* Footer */}
           <SheetFooter className="mt-auto px-0">
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/80"
-              disabled={submitting}
-            >
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva Modifiche
-            </Button>
+            <div className="flex w-full items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950 dark:hover:text-red-300"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Elimina
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-primary hover:bg-primary/80"
+                disabled={submitting}
+              >
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salva Modifiche
+              </Button>
+            </div>
           </SheetFooter>
         </form>
+
+        {/* Conferma eliminazione */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Eliminare questo lead?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Sei sicuro di voler eliminare <strong>{client.nome} {client.cognome}</strong>? L&apos;azione non è reversibile.
+            </p>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+              >
+                Annulla
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Elimina Lead
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   );
