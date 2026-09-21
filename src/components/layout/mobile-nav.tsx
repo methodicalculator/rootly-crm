@@ -19,8 +19,8 @@ import {
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, ADMIN_NAV_ITEMS, STAFF_NAV_ITEMS, APP_NAME } from "@/lib/constants";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { APP_NAME } from "@/lib/constants";
+import { useNavItems } from "@/hooks/use-nav-items";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,17 +42,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { role } = useOrganization();
-  const isStaff = role === "staff";
-
-  const isAdminOrSuper = role === "admin" || role === "super_admin";
-  const showOwnerNav = role === "owner";
-
-  const logoHref = isStaff
-    ? "/staff/studi"
-    : isAdminOrSuper
-      ? "/admin/dashboard-aggregata"
-      : "/dashboard";
+  const { staffItems, ownerItems, adminItems, logoHref } = useNavItems();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -78,8 +68,7 @@ export function MobileNav() {
         <ScrollArea className="flex-1">
           <nav className="flex flex-col gap-1 p-4">
             {/* Staff: show only staff nav items */}
-            {isStaff &&
-              STAFF_NAV_ITEMS.map((item) => {
+            {staffItems.map((item) => {
                 const Icon = iconMap[item.icon];
                 const isActive = pathname.startsWith("/staff");
 
@@ -102,8 +91,7 @@ export function MobileNav() {
               })}
 
             {/* Owner: standard nav items */}
-            {showOwnerNav &&
-              NAV_ITEMS.map((item) => {
+            {ownerItems.map((item) => {
                 const Icon = iconMap[item.icon];
                 const isActive =
                   pathname === item.href ||
@@ -128,8 +116,7 @@ export function MobileNav() {
               })}
 
             {/* Admin / Super Admin: admin nav items only */}
-            {isAdminOrSuper &&
-              ADMIN_NAV_ITEMS.map((item) => {
+            {adminItems.map((item) => {
                 const Icon = iconMap[item.icon];
                 const isActive =
                   pathname === item.href ||

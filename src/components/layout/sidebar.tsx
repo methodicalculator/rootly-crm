@@ -17,8 +17,9 @@ import {
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, ADMIN_NAV_ITEMS, STAFF_NAV_ITEMS, APP_NAME } from "@/lib/constants";
+import { APP_NAME } from "@/lib/constants";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useNavItems } from "@/hooks/use-nav-items";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -36,26 +37,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSuperAdmin, role, impersonatingOrgId } = useOrganization();
-
-  const isImpersonating = !!impersonatingOrgId;
-  const isStaff = role === "staff" && !isImpersonating;
-
-  // When impersonating, show the owner/client nav regardless of real role
-  const showOwnerNav = role === "owner" || isImpersonating;
-
-  const adminItems =
-    (role === "admin" || role === "super_admin") && !isImpersonating
-      ? ADMIN_NAV_ITEMS
-      : [];
-
-  const logoHref = isImpersonating
-    ? "/dashboard"
-    : isStaff
-      ? "/staff/studi"
-      : role === "admin" || role === "super_admin"
-        ? "/admin/dashboard-aggregata"
-        : "/dashboard";
+  const { role } = useOrganization();
+  const { adminItems, staffItems, ownerItems, logoHref } = useNavItems();
 
   return (
     <aside className="hidden w-65 shrink-0 border-r border-border bg-card lg:flex lg:flex-col">
@@ -74,8 +57,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto p-4">
         <div className="flex flex-col gap-1">
           {/* Staff: show only staff nav items with blue style */}
-          {isStaff &&
-            STAFF_NAV_ITEMS.map((item) => {
+          {staffItems.map((item) => {
               const Icon = iconMap[item.icon];
               const isActive = pathname.startsWith("/staff");
 
@@ -97,8 +79,7 @@ export function Sidebar() {
             })}
 
           {/* Owner: standard nav items */}
-          {showOwnerNav &&
-            NAV_ITEMS.map((item) => {
+          {ownerItems.map((item) => {
               const Icon = iconMap[item.icon];
               const isActive =
                 pathname === item.href ||
