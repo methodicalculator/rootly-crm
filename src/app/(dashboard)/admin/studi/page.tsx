@@ -411,8 +411,8 @@ export default function GestioneStudiPage() {
                         </div>
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="flex shrink-0 gap-2">
+                      {/* Action buttons — desktop: inline row */}
+                      <div className="hidden shrink-0 gap-2 md:flex">
                         <Button
                           variant="outline"
                           size="sm"
@@ -455,6 +455,53 @@ export default function GestioneStudiPage() {
                           </Button>
                         )}
                       </div>
+                    </div>
+
+                    {/* Action buttons — mobile: 2-col grid + full-width impersonate */}
+                    <div className="mt-3 grid grid-cols-2 gap-3 md:hidden">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setEditingOrg(org);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="mr-1.5 h-4 w-4" />
+                        Modifica
+                      </Button>
+                      {org.status === "active" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() =>
+                            router.push(`/staff/studio/${org.id}`)
+                          }
+                        >
+                          <Eye className="mr-1.5 h-4 w-4" />
+                          Visualizza
+                        </Button>
+                      ) : (
+                        <div />
+                      )}
+                      {canImpersonate && org.status === "active" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="col-span-2 w-full border-primary text-primary hover:bg-primary/10"
+                          disabled={isImpersonating}
+                          onClick={() => handleImpersonate(org.id)}
+                        >
+                          {isImpersonating ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Eye className="mr-1.5 h-4 w-4" />
+                          )}
+                          Entra come Supporto
+                        </Button>
+                      )}
                     </div>
 
                     {/* Stats row */}
