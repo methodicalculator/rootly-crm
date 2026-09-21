@@ -63,6 +63,7 @@ const STATUS_TABS = [
   { key: "active", label: "Attivi" },
   { key: "pending", label: "In Attesa" },
   { key: "suspended", label: "Sospesi" },
+  { key: "archived", label: "Archiviati" },
 ] as const;
 
 export default function GestioneStudiPage() {
@@ -248,7 +249,7 @@ export default function GestioneStudiPage() {
 
   const filtered =
     activeTab === "all"
-      ? orgs
+      ? orgs.filter((o) => o.status !== "archived")
       : orgs.filter((o) => o.status === activeTab);
 
   // Summary counts

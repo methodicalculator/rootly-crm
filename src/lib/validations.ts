@@ -38,7 +38,7 @@ export const organizationFormSchema = z.object({
   monthly_budget: z.string().optional(),
   contract_start_date: z.string().optional(),
   contract_end_date: z.string().optional(),
-  status: z.enum(["active", "pending", "suspended", "cancelled"]),
+  status: z.enum(["active", "pending", "suspended", "cancelled", "archived"]),
 });
 
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;

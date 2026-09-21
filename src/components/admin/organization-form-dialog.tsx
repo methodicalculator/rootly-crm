@@ -20,7 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Archive, Loader2, RotateCcw } from "lucide-react";
 import {
   organizationFormSchema,
   type OrganizationFormValues,
@@ -65,7 +75,12 @@ export function OrganizationFormDialog({
   prefillData,
 }: OrganizationFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const isEditing = !!editingOrg;
+  const canArchive =
+    isEditing && (editingOrg.status === "active" || editingOrg.status === "suspended");
+  const canReactivate = isEditing && editingOrg.status === "archived";
 
   const form = useForm<OrganizationFormValues>({
     resolver: zodResolver(organizationFormSchema),
@@ -103,6 +118,36 @@ export function OrganizationFormDialog({
       form.reset(EMPTY_FORM);
     }
     onOpenChange(nextOpen);
+  }
+
+  async function handleStatusChange(newStatus: "archived" | "active") {
+    if (!editingOrg) return;
+    setArchiving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("organizations")
+        .update({ status: newStatus })
+        .eq("id", editingOrg.id);
+
+      if (error) {
+        toast.error(
+          newStatus === "archived"
+            ? "Errore durante l'archiviazione"
+            : "Errore durante la riattivazione"
+        );
+        return;
+      }
+      toast.success(
+        newStatus === "archived"
+          ? "Studio archiviato con successo"
+          : "Studio riattivato con successo"
+      );
+      handleOpenChange(false);
+      onSuccess();
+    } finally {
+      setArchiving(false);
+    }
   }
 
   async function onSubmit(values: OrganizationFormValues) {
@@ -399,6 +444,44 @@ export function OrganizationFormDialog({
             </div>
           </div>
 
+          {/* Archive / Reactivate */}
+          {canArchive && (
+            <div className="border-t border-border pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                disabled={archiving}
+                onClick={() => setArchiveConfirmOpen(true)}
+              >
+                {archiving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Archive className="mr-2 h-4 w-4" />
+                )}
+                Archivia Studio
+              </Button>
+            </div>
+          )}
+          {canReactivate && (
+            <div className="border-t border-border pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950/30"
+                disabled={archiving}
+                onClick={() => handleStatusChange("active")}
+              >
+                {archiving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                Riattiva Studio
+              </Button>
+            </div>
+          )}
+
           {/* Submit */}
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -416,6 +499,29 @@ export function OrganizationFormDialog({
             </Button>
           </div>
         </form>
+
+        {/* Archive confirmation dialog */}
+        <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archivia Studio</AlertDialogTitle>
+              <AlertDialogDescription>
+                Lo studio non sarà più visibile tra gli attivi, ma potrai
+                riattivarlo in qualsiasi momento. I clienti e i dati esistenti
+                resteranno intatti.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-orange-600 hover:bg-orange-700"
+                onClick={() => handleStatusChange("archived")}
+              >
+                Archivia
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

@@ -10,7 +10,7 @@ export type OrganizationType =
   | "estetica"
   | "altro";
 
-export type OrganizationStatus = "pending" | "active" | "suspended" | "cancelled";
+export type OrganizationStatus = "pending" | "active" | "suspended" | "cancelled" | "archived";
 
 export interface Organization {
   id: string;

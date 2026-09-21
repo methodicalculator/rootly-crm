@@ -119,6 +119,7 @@ export const ORGANIZATION_STATUS_CONFIG: Record<
   active: { label: "Attivo", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
   suspended: { label: "Sospeso", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
   cancelled: { label: "Cancellato", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300" },
+  archived: { label: "Archiviato", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
 };
 
 // ============================================
