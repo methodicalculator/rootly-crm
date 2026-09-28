@@ -92,26 +92,24 @@ export function CalComCard({ organizationId }: CalComCardProps) {
           <div>
             <CardTitle>Prenotazione Appuntamenti</CardTitle>
             <CardDescription>
-              Configura il link Cal.com per la prenotazione appuntamenti
+              Configura il link Cal.com per la prenotazione appuntamenti (facoltativo)
             </CardDescription>
           </div>
-          {calComLink ? (
-            isConfigured ? (
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                Configurata
-              </Badge>
-            ) : (
-              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                Incompleta
-              </Badge>
-            )
-          ) : null}
+          {isConfigured ? (
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+              Cal.com Attivo
+            </Badge>
+          ) : (
+            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+              Calendario Interno
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="cal_com_link">Link Cal.com</Label>
+            <Label htmlFor="cal_com_link">Link Cal.com (facoltativo)</Label>
             <Input
               id="cal_com_link"
               placeholder="es: nome-cognome/prima-visita"
@@ -119,7 +117,7 @@ export function CalComCard({ organizationId }: CalComCardProps) {
               onChange={(e) => setCalComLink(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Inserisci lo slug del tuo evento Cal.com (es. &quot;nome-utente/tipo-evento&quot;)
+              Facoltativo. Se lo inserisci, gli appuntamenti si prenotano tramite Cal.com; altrimenti si usa il calendario interno.
             </p>
           </div>
 

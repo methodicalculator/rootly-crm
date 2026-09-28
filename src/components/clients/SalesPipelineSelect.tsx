@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { SALES_STAGE_CONFIG, LOST_REASON_CONFIG } from "@/lib/constants";
 import { REVENUE_STAGES, STAGE_ORDER } from "@/lib/constants/stages";
 import { getCalApi } from "@calcom/embed-react";
+import { AppointmentFormDialog } from "@/components/clients/appointment-form-dialog";
 import type { Client, SalesStage, LostReason } from "@/types";
 
 const MOBILE_LABELS: Partial<Record<SalesStage, string>> = {
@@ -71,6 +72,7 @@ export function SalesPipelineSelect({
   const [convertedSessions, setConvertedSessions] = useState("");
   const [showSingolaSedutaDialog, setShowSingolaSedutaDialog] = useState(false);
   const [singolaSedutaImporto, setSingolaSedutaImporto] = useState("");
+  const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [revenueValue, setRevenueValue] = useState("");
   const [revenueSaved, setRevenueSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>(null);
@@ -157,13 +159,14 @@ export function SalesPipelineSelect({
     }
 
     if (stage === "appointment_scheduled") {
-      if (!calComLink) {
-        toast.error("Configura il link Cal.com nelle impostazioni prima di fissare appuntamenti");
-        return;
-      }
       setShowLostReason(false);
       setShowConvertedDialog(false);
-      openCalPopup();
+      setShowSingolaSedutaDialog(false);
+      if (calComLink) {
+        openCalPopup();
+      } else {
+        setShowAppointmentDialog(true);
+      }
       return;
     }
 
@@ -240,6 +243,11 @@ export function SalesPipelineSelect({
       revenue: cumulativeRevenue,
       sessions_count: sessions,
     });
+  }
+
+  function handleAppointmentSaved(appointmentDateISO: string) {
+    setShowAppointmentDialog(false);
+    updateStage("appointment_scheduled", undefined, appointmentDateISO);
   }
 
   const stageCfg = SALES_STAGE_CONFIG[currentStage];
@@ -454,6 +462,16 @@ export function SalesPipelineSelect({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AppointmentFormDialog
+        open={showAppointmentDialog}
+        onOpenChange={setShowAppointmentDialog}
+        organizationId={organizationId}
+        clientId={clientId}
+        clientName={clientName}
+        clientNote={clientNote}
+        onSuccess={handleAppointmentSaved}
+      />
     </div>
   );
 }
